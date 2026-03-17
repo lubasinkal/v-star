@@ -4,7 +4,7 @@ A high-performance, zero-dependency actuarial engine for Concurrent Financial Si
 
 ## The Origin
 The name **v-star** comes from a class joke between my University lecturer and comrades (brothers and sister deployed to study Actuarial Science): 
-If an annuity $v$ compounds at rate $j$, the new $v^* = (1+j)/v$. 
+If an annuity $v$ compounds at rate $j$ while being discounted (valued) at rate $i$ , then the adjusted (effective) discount factor is, the new $v^* = (1+j)*v$. 
 
 ## Why v-star?
 Modern financial software is often bloated and slow. **v-star** is designed for:

@@ -14,10 +14,10 @@ func (r RateConverter) V() float64 {
 	return 1 / (1 + r.EffectiveRate)
 }
 
-// VStar implements the class joke: v* = (1 + j) / v
+// VStar implements the class joke: v* = (1 + j) * v
 // Where j is a compounding growth rate.
 func (r RateConverter) VStar(j float64) float64 {
-	return (1 + j) / r.V()
+	return (1 + j) * r.V()
 }
 
 // NominalToEffective converts a nominal rate compounded 'm' times per annum
