@@ -48,3 +48,30 @@ func ParseRecord(fields []string) CensusRecord {
 		Term:       term,
 	}
 }
+
+func StreamCSV(filepath string, fn func(CensusRecord)) error {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	reader := csv.NewReader(file)
+	reader.TrimLeadingSpace = true
+
+	// Skip header
+	_, err = reader.Read()
+	if err != nil {
+		return err
+	}
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			break // EOF
+		}
+
+		census := ParseRecord(record)
+		fn(census) // Process immediately, don't store
+	}
+
+	return nil
+}
