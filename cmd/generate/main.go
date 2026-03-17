@@ -18,5 +18,5 @@ func main() {
 		term := 1 + rand.Intn(30)
 		fmt.Fprintf(f, "%d,%s,%s,%.2f,%d\n", age, sex, ptype, sum, term)
 	}
-	fmt.Println("Created 2M_test.csv with 100,000 rows")
+	fmt.Println("Created 2M_test.csv with 2,000,000 rows")
 }
