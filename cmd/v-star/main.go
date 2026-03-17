@@ -1,0 +1,35 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+
+	"github.com/lubasinkal/v-star/pkg/rates"
+)
+
+func main() {
+	// Define CLI flags
+	interest := flag.Float64("i", 0.05, "The effective annual interest rate (e.g., 0.05 for 5%)")
+	growth := flag.Float64("j", 0.02, "The compounding growth rate for v-star logic")
+	help := flag.Bool("h", false, "Show help")
+
+	flag.Parse()
+
+	if *help {
+		fmt.Println("v-star: High-performance actuarial rate converter")
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
+
+	// Initialize our library logic
+	converter := rates.RateConverter{EffectiveRate: *interest}
+
+	// Output calculations
+	fmt.Println("--- V-star Actuarial Engine ---")
+	fmt.Printf("Effective Rate (i): %.2f%%\n", *interest*100)
+	fmt.Printf("Growth Rate (j): %.2f%%\n", *growth*100)
+	fmt.Printf("Standard Discount (v): %.6f\n", converter.V())
+	fmt.Printf("V-Star (v*):           %.6f\n", converter.VStar(*growth))
+	fmt.Println("-------------------------------")
+}
