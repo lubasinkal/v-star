@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/lubasinkal/v-star/pkg/rates"
@@ -41,6 +43,28 @@ func main() {
 		filepath := args[1]
 		var count int
 		var totalSum float64
+
+		// Parse additional flags that may appear after the file path
+		// This handles cases like: v-star read file.csv --limit=10 --benchmark
+		for i := 2; i < len(args); i++ {
+			arg := args[i]
+			if arg == "--benchmark" || arg == "-benchmark" {
+				*benchmark = true
+			} else if strings.HasPrefix(arg, "--limit=") || strings.HasPrefix(arg, "-limit=") {
+				val := strings.Split(arg, "=")[1]
+				if val != "" {
+					limitVal, err := strconv.Atoi(val)
+					if err == nil {
+						*limit = limitVal
+					}
+				}
+			} else if strings.HasPrefix(arg, "--header=") || strings.HasPrefix(arg, "-header=") {
+				val := strings.Split(arg, "=")[1]
+				if val != "" {
+					*header = (val == "true")
+				}
+			}
+		}
 
 		start := time.Now()
 
