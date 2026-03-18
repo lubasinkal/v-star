@@ -44,7 +44,7 @@ This document outlines the phased feature plan for the **v-star** engine, focusi
 
 ### 4.3 Data Models
 * [x] **CensusRecord Struct:** Age, Sex, PolicyType, SumAssured, Term
-* [ ] **Validation:** Data type validation and error handling
+* [x] **Validation:** Data type validation and error handling
 
 ### 4.4 Output Options
 * [x] **Console Output:** Pretty-printed table format
@@ -55,9 +55,8 @@ This document outlines the phased feature plan for the **v-star** engine, focusi
 * [x] **V-Star PV Calculation:** Present value using the v-star adjusted discount factor
 * [x] **CLI Integration:** Automatic valuation during CSV processing
 
-## Phase 5: Financial Extensions
-* [ ] **Annuity Schedules:** Generate full amortization or payout schedules.
-* [ ] **Black-Scholes Module:** Option pricing for equity-linked insurance products.
+## 5 FrontEnd
+* [ ] **Basic Frontend:** Create a frontend to visualise the work.
 
 ---
 
