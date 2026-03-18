@@ -1,58 +1,16 @@
 package reader
 
 import (
-	"encoding/csv"
+	"bufio"
 	"io"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type StreamOptions struct {
 	Header bool
 	Limit  int
-}
-
-func ReadCSV(filepath string) ([]CensusRecord, error) {
-	// Open file
-	file, err := os.Open(filepath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	// Create CSV reader
-	reader := csv.NewReader(file)
-
-	// Optional: Better performance
-	reader.TrimLeadingSpace = true
-	// Read header (if exists) - skip it
-	_, err = reader.Read()
-	if err != nil {
-		return nil, err // No data
-	}
-	// Read all records
-	var records []CensusRecord
-	for {
-		record, err := reader.Read()
-		if err != nil {
-			break // EOF
-		}
-
-		census := ParseRecord(record)
-		records = append(records, census)
-	}
-	return records, nil
-}
-func ParseRecord(fields []string) CensusRecord {
-	age, _ := strconv.Atoi(fields[0])
-	sumAssured, _ := strconv.ParseFloat(fields[3], 64)
-	term, _ := strconv.Atoi(fields[4])
-	return CensusRecord{
-		Age:        age,
-		Sex:        fields[1],
-		PolicyType: fields[2],
-		SumAssured: sumAssured,
-		Term:       term,
-	}
 }
 
 func StreamCSV(filepath string, opts StreamOptions, fn func(CensusRecord)) error {
@@ -61,37 +19,88 @@ func StreamCSV(filepath string, opts StreamOptions, fn func(CensusRecord)) error
 		return err
 	}
 	defer file.Close()
-	reader := csv.NewReader(file)
-	reader.TrimLeadingSpace = true
 
-	// Skip header
+	reader := bufio.NewReaderSize(file, 64*1024*1024)
+
 	if opts.Header {
-		if _, err := reader.Read(); err != nil {
+		if _, err := reader.ReadString('\n'); err != nil {
 			return err
 		}
 	}
 
 	count := 0
+	limit := opts.Limit
 
 	for {
-
-		if opts.Limit > 0 && count >= opts.Limit {
+		if limit > 0 && count >= limit {
 			break
 		}
 
-		record, err := reader.Read()
+		line, err := reader.ReadString('\n')
 		if err == io.EOF {
+			if len(line) > 0 {
+				parseAndCall(line, fn, &count)
+			}
 			break
 		}
 		if err != nil {
 			return err
 		}
 
-		census := ParseRecord(record)
-		fn(census)
-
-		count++
+		parseAndCall(line, fn, &count)
 	}
 
 	return nil
+}
+
+func parseAndCall(line string, fn func(CensusRecord), count *int) {
+	// Fast trim - avoid allocations
+	if len(line) == 0 {
+		return
+	}
+
+	// Remove trailing newline
+	if line[len(line)-1] == '\n' {
+		line = line[:len(line)-1]
+	}
+	if len(line) > 0 && line[len(line)-1] == '\r' {
+		line = line[:len(line)-1]
+	}
+
+	if len(line) == 0 {
+		return
+	}
+
+	fields := strings.SplitN(line, ",", 5)
+	if len(fields) < 5 {
+		return
+	}
+
+	age, _ := strconv.Atoi(fields[0])
+	sumAssured, _ := strconv.ParseFloat(fields[3], 64)
+	term, _ := strconv.Atoi(fields[4])
+
+	fn(CensusRecord{
+		Age:        age,
+		Sex:        fields[1],
+		PolicyType: fields[2],
+		SumAssured: sumAssured,
+		Term:       term,
+	})
+
+	*count++
+}
+
+func ParseRecord(fields []string) CensusRecord {
+	age, _ := strconv.Atoi(fields[0])
+	sumAssured, _ := strconv.ParseFloat(fields[3], 64)
+	term, _ := strconv.Atoi(fields[4])
+
+	return CensusRecord{
+		Age:        age,
+		Sex:        fields[1],
+		PolicyType: fields[2],
+		SumAssured: sumAssured,
+		Term:       term,
+	}
 }
