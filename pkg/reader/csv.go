@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"strings"
 )
 
 type StreamOptions struct {
@@ -23,9 +22,7 @@ func StreamCSV(filepath string, opts StreamOptions, fn func(CensusRecord)) error
 	reader := bufio.NewReaderSize(file, 64*1024*1024)
 
 	if opts.Header {
-		if _, err := reader.ReadString('\n'); err != nil {
-			return err
-		}
+		_, _ = reader.ReadString('\n')
 	}
 
 	count := 0
@@ -39,7 +36,8 @@ func StreamCSV(filepath string, opts StreamOptions, fn func(CensusRecord)) error
 		line, err := reader.ReadString('\n')
 		if err == io.EOF {
 			if len(line) > 0 {
-				parseAndCall(line, fn, &count)
+				fn(parseLine(line))
+				count++
 			}
 			break
 		}
@@ -47,48 +45,64 @@ func StreamCSV(filepath string, opts StreamOptions, fn func(CensusRecord)) error
 			return err
 		}
 
-		parseAndCall(line, fn, &count)
+		fn(parseLine(line))
+		count++
 	}
 
 	return nil
 }
 
-func parseAndCall(line string, fn func(CensusRecord), count *int) {
-	// Fast trim - avoid allocations
-	if len(line) == 0 {
-		return
+func parseLine(line string) CensusRecord {
+	// Fast trim without allocation
+	n := len(line)
+	if n > 0 && line[n-1] == '\n' {
+		n--
 	}
-
-	// Remove trailing newline
-	if line[len(line)-1] == '\n' {
-		line = line[:len(line)-1]
+	if n > 0 && line[n-1] == '\r' {
+		n--
 	}
-	if len(line) > 0 && line[len(line)-1] == '\r' {
-		line = line[:len(line)-1]
-	}
+	line = line[:n]
 
-	if len(line) == 0 {
-		return
-	}
+	// Find positions of commas (much faster than Split)
+	c0 := 0
+	c1 := indexByte(line, ',', 0)
+	c2 := indexByte(line, ',', c1+1)
+	c3 := indexByte(line, ',', c2+1)
+	c4 := indexByte(line, ',', c3+1)
 
-	fields := strings.SplitN(line, ",", 5)
-	if len(fields) < 5 {
-		return
-	}
+	age := atoi(line[c0:c1])
+	sex := line[c1+1 : c2]
+	policyType := line[c2+1 : c3]
+	sumAssured, _ := strconv.ParseFloat(line[c3+1:c4], 64)
+	term := atoi(line[c4+1:])
 
-	age, _ := strconv.Atoi(fields[0])
-	sumAssured, _ := strconv.ParseFloat(fields[3], 64)
-	term, _ := strconv.Atoi(fields[4])
-
-	fn(CensusRecord{
+	return CensusRecord{
 		Age:        age,
-		Sex:        fields[1],
-		PolicyType: fields[2],
+		Sex:        sex,
+		PolicyType: policyType,
 		SumAssured: sumAssured,
 		Term:       term,
-	})
+	}
+}
 
-	*count++
+func indexByte(s string, c byte, start int) int {
+	for i := start; i < len(s); i++ {
+		if s[i] == c {
+			return i
+		}
+	}
+	return len(s)
+}
+
+// Fast atoi implementation
+func atoi(s string) int {
+	n := 0
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			n = n*10 + int(c-'0')
+		}
+	}
+	return n
 }
 
 func ParseRecord(fields []string) CensusRecord {
