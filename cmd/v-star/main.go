@@ -14,6 +14,10 @@ func main() {
 	interest := flag.Float64("i", 0.05, "The effective annual interest rate (e.g., 0.05 for 5%)")
 	growth := flag.Float64("j", 0.02, "The compounding growth rate for v-star logic")
 	help := flag.Bool("h", false, "Show help")
+	// output := flag.String("output", "console", "Output format: console, json")
+	// benchmark := flag.Bool("benchmark", false, "Show performance metrics")
+	header := flag.Bool("header", true, "Treat first row as header")
+	limit := flag.Int("limit", 0, "Limit number of rows to process")
 
 	flag.Parse()
 
@@ -33,7 +37,7 @@ func main() {
 		var count int
 		var totalSum float64
 
-		err := reader.StreamCSV(os.Args[2], func(r reader.CensusRecord) {
+		err := reader.StreamCSV(os.Args[2], reader.StreamOptions{Header: *header, Limit: *limit}, func(r reader.CensusRecord) {
 			count++
 			totalSum += r.SumAssured
 			if count <= 5 {
