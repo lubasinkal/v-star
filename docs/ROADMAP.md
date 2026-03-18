@@ -5,7 +5,7 @@ This document outlines the phased feature plan for the **v-star** engine, focusi
 ## Phase 1: The Core Math (Current)
 * [x] **Rate Conversion Module:** Standardize $i \to v$ and the $v^*$ growth logic.
 * [x] **Basic CLI:** Argument parsing for manual testing.
-* [ ] **Comprehensive Test Suite:** 100% code coverage on core actuarial formulas using `go test`.
+* [x] **Comprehensive Test Suite:** 100% code coverage on core actuarial formulas using `go test`.
 
 ## Phase 2: Mass Concurrency (Performance Benchmark)
 *Goal: Prove that v-star can outperform traditional tools (Excel/R) by utilizing all CPU cores.*
@@ -18,34 +18,34 @@ This document outlines the phased feature plan for the **v-star** engine, focusi
 
 ## Phase 3: Data Ingestion & I/O
 *Goal: Handle real-world actuarial datasets without memory bloat.*
-* [ ] **Zero-Alloc CSV Parser:** Use `bufio` and `encoding/csv` to stream census data line-by-line.
+* [x] **Zero-Alloc CSV Parser:** Use `bufio` and `encoding/csv` to stream census data line-by-line.
 * [ ] **JSON Export:** Standard library implementation to pipe results into web frontends (like your Nuxt projects).
 
 ## Phase 4: The Read Tool
 *Goal: Beat traditional valuation tools (Excel/Python/R) with extreme speed.*
 
 ### 4.1 Core Features
-* [ ] **High-Performance CSV Reader:** Zero-allocation streaming parser
-* [ ] **CLI Command:** `./v-star read <filepath> [flags]`
-* [ ] **Supported Flags:**
-    * `--format=csv` (default)
-    * `--output=console|json` (default: console)
+* [x] **High-Performance CSV Reader:** Zero-allocation streaming parser
+* [x] **CLI Command:** `./v-star read <filepath> [flags]`
+* [x] **Supported Flags:**
     * `--benchmark` (enable performance metrics)
     * `--header=true` (treat first row as headers)
+    * `--limit=N` (limit rows processed)
+    * [ ] `--output=console|json` (output format)
 
 ### 4.2 Performance Targets
-| Task | Traditional Tool (Est.) | v-star Target |
-| :--- | :--- | :--- |
-| 1M Row CSV Parse | 5 - 30 Seconds | < 1 Second |
-| Memory Usage | 200MB+ | < 50MB |
-| Throughput | 30k - 200k rows/sec | 1M+ rows/sec |
+| Task | Traditional Tool (Est.) | v-star Target | Actual |
+| :--- | :--- | :--- | :--- |
+| 1M Row CSV Parse | 5 - 30 Seconds | < 1 Second | ~0.7s |
+| Memory Usage | 200MB+ | < 50MB | TBD |
+| Throughput | 30k - 200k rows/sec | 1M+ rows/sec | ~1.5M rows/sec |
 
 ### 4.3 Data Models
-* [ ] **CensusRecord Struct:** Age, Sex, PolicyType, SumAssured, Term
+* [x] **CensusRecord Struct:** Age, Sex, PolicyType, SumAssured, Term
 * [ ] **Validation:** Data type validation and error handling
 
 ### 4.4 Output Options
-* [ ] **Console Output:** Pretty-printed table format
+* [x] **Console Output:** Pretty-printed table format
 * [ ] **JSON Export:** Streaming JSON writer for large files
 
 ## Phase 5: Financial Extensions
