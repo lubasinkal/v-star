@@ -2,9 +2,15 @@ package reader
 
 import (
 	"encoding/csv"
+	"io"
 	"os"
 	"strconv"
 )
+
+type StreamOptions struct {
+	Header bool
+	Limit  int
+}
 
 func ReadCSV(filepath string) ([]CensusRecord, error) {
 	// Open file
@@ -49,7 +55,7 @@ func ParseRecord(fields []string) CensusRecord {
 	}
 }
 
-func StreamCSV(filepath string, fn func(CensusRecord)) error {
+func StreamCSV(filepath string, opts StreamOptions, fn func(CensusRecord)) error {
 	file, err := os.Open(filepath)
 	if err != nil {
 		return err
@@ -59,18 +65,32 @@ func StreamCSV(filepath string, fn func(CensusRecord)) error {
 	reader.TrimLeadingSpace = true
 
 	// Skip header
-	_, err = reader.Read()
-	if err != nil {
-		return err
+	if opts.Header {
+		if _, err := reader.Read(); err != nil {
+			return err
+		}
 	}
+
+	count := 0
+
 	for {
+
+		if opts.Limit > 0 && count >= opts.Limit {
+			break
+		}
+
 		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
-			break // EOF
+			return err
 		}
 
 		census := ParseRecord(record)
-		fn(census) // Process immediately, don't store
+		fn(census)
+
+		count++
 	}
 
 	return nil
