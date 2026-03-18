@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,123 @@ import (
 	"github.com/lubasinkal/v-star/pkg/stochastic"
 	"github.com/lubasinkal/v-star/pkg/writer"
 )
+
+// benchmarkCSV benchmarks CSV parsing performance
+func benchmarkCSV() {
+	// Use the 2M test dataset
+	filepath := "2M_test.csv"
+
+	// Check if file exists
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		fmt.Println("  Skipping: 2M_test.csv not found")
+		return
+	}
+
+	// Get memory stats before
+	var memStatsBefore runtime.MemStats
+	runtime.ReadMemStats(&memStatsBefore)
+
+	start := time.Now()
+	var count int
+
+	err := reader.StreamCSV(filepath, reader.StreamOptions{Header: true, Limit: 1000000}, func(r reader.CensusRecord) {
+		count++
+	})
+
+	duration := time.Since(start)
+
+	// Get memory stats after
+	var memStatsAfter runtime.MemStats
+	runtime.ReadMemStats(&memStatsAfter)
+
+	memoryUsed := (memStatsAfter.Alloc - memStatsBefore.Alloc) / 1024 / 1024
+
+	if err != nil {
+		fmt.Printf("  Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("  Rows Processed: %d\n", count)
+	fmt.Printf("  Duration: %v\n", duration)
+	fmt.Printf("  Throughput: %.0f rows/sec\n", float64(count)/duration.Seconds())
+	fmt.Printf("  Memory Used: %d MB\n", memoryUsed)
+}
+
+// benchmarkValuation benchmarks valuation calculation performance
+func benchmarkValuation() {
+	// Generate test data
+	records := make([]reader.CensusRecord, 1000000)
+	for i := 0; i < 1000000; i++ {
+		records[i] = reader.CensusRecord{
+			Age:        30 + i%50,
+			Sex:        "male",
+			PolicyType: "term",
+			SumAssured: 100000.0 + float64(i%100)*1000.0,
+			Term:       10 + i%20,
+		}
+	}
+
+	converter := rates.RateConverter{EffectiveRate: 0.05}
+
+	// Get memory stats before
+	var memStatsBefore runtime.MemStats
+	runtime.ReadMemStats(&memStatsBefore)
+
+	start := time.Now()
+	totalPV := concurrency.ProcessBatch(records, converter, 4)
+	duration := time.Since(start)
+
+	// Get memory stats after
+	var memStatsAfter runtime.MemStats
+	runtime.ReadMemStats(&memStatsAfter)
+
+	// Calculate memory used correctly (handle potential wraparound)
+	var memoryUsed uint64
+	if memStatsAfter.Alloc > memStatsBefore.Alloc {
+		memoryUsed = (memStatsAfter.Alloc - memStatsBefore.Alloc) / 1024 / 1024
+	} else {
+		memoryUsed = 0
+	}
+
+	fmt.Printf("  Policies Valuated: %d\n", len(records))
+	fmt.Printf("  Duration: %v\n", duration)
+	fmt.Printf("  Throughput: %.0f policies/sec\n", float64(len(records))/duration.Seconds())
+	fmt.Printf("  Total PV: %.2f\n", totalPV)
+	fmt.Printf("  Memory Used: %d MB\n", memoryUsed)
+}
+
+// benchmarkMonteCarlo benchmarks Monte Carlo simulation performance
+func benchmarkMonteCarlo() {
+	// Get memory stats before
+	var memStatsBefore runtime.MemStats
+	runtime.ReadMemStats(&memStatsBefore)
+
+	start := time.Now()
+
+	rg := stochastic.NewRateGenerator(0.05, 0.02, 0.15)
+	paths := rg.GeneratePaths(100000, 10, 1.0)
+
+	duration := time.Since(start)
+
+	// Get memory stats after
+	var memStatsAfter runtime.MemStats
+	runtime.ReadMemStats(&memStatsAfter)
+
+	memoryUsed := (memStatsAfter.Alloc - memStatsBefore.Alloc) / 1024 / 1024
+
+	// Calculate statistics
+	var totalRate float64
+	for _, path := range paths {
+		totalRate += path[10]
+	}
+	avgRate := totalRate / float64(len(paths))
+
+	fmt.Printf("  Paths Generated: %d\n", len(paths))
+	fmt.Printf("  Duration: %v\n", duration)
+	fmt.Printf("  Throughput: %.0f paths/sec\n", float64(len(paths))/duration.Seconds())
+	fmt.Printf("  Average Final Rate: %.4f%%\n", avgRate*100)
+	fmt.Printf("  Memory Used: %d MB\n", memoryUsed)
+}
 
 func main() {
 	// Define CLI flags
@@ -32,6 +150,7 @@ func main() {
 		fmt.Println("\nSubcommands:")
 		fmt.Println("  read <file.csv>    Read CSV and calculate valuations")
 		fmt.Println("  montecarlo         Generate Monte Carlo interest rate paths")
+		fmt.Println("  bench              Run performance benchmark suite")
 		fmt.Println("  (default)          Calculate discount factors")
 		fmt.Println("\nFlags:")
 		flag.PrintDefaults()
@@ -40,6 +159,7 @@ func main() {
 		fmt.Println("  v-star read policies.csv --benchmark")
 		fmt.Println("  v-star read policies.csv --output=json")
 		fmt.Println("  v-star montecarlo --paths=100000 --steps=10")
+		fmt.Println("  v-star bench")
 		os.Exit(0)
 	}
 
@@ -235,6 +355,31 @@ func main() {
 		fmt.Printf("  Minimum: %.4f%%\n", minRate*100)
 		fmt.Printf("  Maximum: %.4f%%\n", maxRate*100)
 
+		os.Exit(0)
+	}
+
+	// Benchmark subcommand
+	if len(args) > 0 && args[0] == "bench" {
+		fmt.Println("Running v-star benchmark suite...")
+		fmt.Println("=====================================")
+
+		// Benchmark 1: CSV Parsing
+		fmt.Println("1. CSV Parsing Benchmark")
+		fmt.Println("------------------------")
+		benchmarkCSV()
+
+		// Benchmark 2: Valuation Calculation
+		fmt.Println("\n2. Valuation Calculation Benchmark")
+		fmt.Println("----------------------------------")
+		benchmarkValuation()
+
+		// Benchmark 3: Monte Carlo Simulation
+		fmt.Println("\n3. Monte Carlo Simulation Benchmark")
+		fmt.Println("-----------------------------------")
+		benchmarkMonteCarlo()
+
+		fmt.Println("\n=====================================")
+		fmt.Println("Benchmark suite completed!")
 		os.Exit(0)
 	}
 

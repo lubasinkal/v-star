@@ -11,7 +11,7 @@ This document outlines the phased feature plan for the **v-star** engine, focusi
 *Goal: Prove that v-star can outperform traditional tools (Excel/R) by utilizing all CPU cores.*
 * [x] **Stochastic Rate Engine:** A module that generates 100,000+ interest rate paths using `math/rand/v2`.
 * [ ] **The Worker Pool:** Implement a goroutine pool to process 1,000,000 valuations in parallel (structure implemented).
-* [ ] **Internal Benchmarking Tool:** A sub-command `./v-star bench` that reports:
+* [x] **Internal Benchmarking Tool:** A sub-command `./v-star bench` that reports:
     * Execution time (ms)
     * Allocated memory (MB)
     * Throughput (Policies per second)

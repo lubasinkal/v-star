@@ -42,6 +42,9 @@ go build ./cmd/v-star
 
 # Generate Monte Carlo interest rate paths
 ./v-star montecarlo --paths=100000 --steps=10 --drift=0.02 --volatility=0.15
+
+# Run performance benchmark suite
+./v-star bench
 ```
 
 ### Example Output
