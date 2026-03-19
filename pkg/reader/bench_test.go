@@ -2,6 +2,7 @@ package reader
 
 import (
 	"os"
+	"sync"
 	"testing"
 )
 
@@ -46,6 +47,47 @@ func BenchmarkParseCensusFastBytes(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = parseCensusFastBytes(line, ',')
+	}
+}
+
+// BenchmarkStreamCSV measures sequential CSV reading throughput.
+// Run with: go test ./pkg/reader -bench=BenchmarkStreamCSV$ -benchmem
+func BenchmarkStreamCSV(b *testing.B) {
+	filepath := "../../10M.csv"
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		b.Skip("10M.csv not found")
+	}
+
+	b.ResetTimer()
+	b.SetBytes(288 * 1024 * 1024)
+	for i := 0; i < b.N; i++ {
+		count := 0
+		StreamCSV(filepath, CSVOptions{Header: true, Limit: 5000000}, func(fields []string) {
+			count++
+		})
+		_ = count
+	}
+}
+
+// BenchmarkStreamCSVParallel measures parallel CSV reading throughput.
+// Run with: go test ./pkg/reader -bench=BenchmarkStreamCSVParallel -benchmem
+func BenchmarkStreamCSVParallel(b *testing.B) {
+	filepath := "../../10M.csv"
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		b.Skip("10M.csv not found")
+	}
+
+	b.ResetTimer()
+	b.SetBytes(288 * 1024 * 1024)
+	for i := 0; i < b.N; i++ {
+		count := 0
+		var mu sync.Mutex
+		StreamCSVParallel(filepath, CSVOptions{Header: true, Limit: 5000000}, func(fields []string) {
+			mu.Lock()
+			count++
+			mu.Unlock()
+		})
+		_ = count
 	}
 }
 

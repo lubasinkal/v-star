@@ -34,13 +34,10 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 	scanner.Buffer(make([]byte, 64*1024*1024), 64*1024*1024)
 
 	// Read header if present
-	var headers []string
 	if opts.Header {
 		if !scanner.Scan() {
 			return scanner.Err()
 		}
-		headers = parseFields(scanner.Bytes(), delimiter)
-		_ = headers // caller can use GetHeaders if needed
 	}
 
 	count := 0
@@ -63,8 +60,9 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 }
 
 // StreamCSVParallel reads a CSV file using multiple goroutines for maximum throughput.
-// Each goroutine reads a chunk of the file, finds line boundaries, and parses fields.
-// fn is called concurrently — it must be safe for concurrent use or handle its own sync.
+// Each goroutine reads its own chunk via ReadAt (concurrent disk I/O), finds line
+// boundaries, parses fields, and stores results in a batch. The main goroutine
+// yields results in order. fn must be safe for concurrent use or handle its own sync.
 func StreamCSVParallel(filepath string, opts CSVOptions, fn func(fields []string)) error {
 	delimiter := opts.Delimiter
 	if delimiter == 0 {
@@ -113,10 +111,12 @@ func StreamCSVParallel(filepath string, opts CSVOptions, fn func(fields []string
 	}
 
 	chunkSize := dataSize / int64(numWorkers)
-	results := make(chan []string, 10000)
+
+	type batchResult struct {
+		rows [][]string
+	}
+	batchResults := make([]batchResult, numWorkers)
 	var wg sync.WaitGroup
-	var parseErr error
-	var errMu sync.Mutex
 
 	for w := 0; w < numWorkers; w++ {
 		start := headerOffset + int64(w)*chunkSize
@@ -126,29 +126,25 @@ func StreamCSVParallel(filepath string, opts CSVOptions, fn func(fields []string
 		}
 
 		wg.Add(1)
-		go func(start, end int64) {
+		go func(idx int, start, end int64) {
 			defer wg.Done()
 
-			bufSize := end - start
+			// Read chunk via ReadAt (concurrent-safe, no mutex needed)
+			bufSize := int(end - start)
 			buf := make([]byte, bufSize)
 			n, err := f.ReadAt(buf, start)
 			if err != nil && err != io.EOF {
-				errMu.Lock()
-				if parseErr == nil {
-					parseErr = err
-				}
-				errMu.Unlock()
 				return
 			}
 			buf = buf[:n]
 
-			// Adjust start: skip partial line at the beginning
+			// Skip partial line at start (except first chunk)
 			if start > headerOffset {
-				idx := bytes.IndexByte(buf, '\n')
-				if idx < 0 {
+				i := bytes.IndexByte(buf, '\n')
+				if i < 0 {
 					return
 				}
-				buf = buf[idx+1:]
+				buf = buf[i+1:]
 			}
 
 			// Trim trailing partial line
@@ -161,51 +157,68 @@ func StreamCSVParallel(filepath string, opts CSVOptions, fn func(fields []string
 				}
 			}
 
+			// Pre-allocate batch based on estimated line count (~50 bytes/line)
+			estLines := len(buf) / 50
+			if estLines < 1024 {
+				estLines = 1024
+			}
+			rows := make([][]string, 0, estLines)
+
 			// Parse lines in this chunk
 			for len(buf) > 0 {
-				idx := bytes.IndexByte(buf, '\n')
-				if idx < 0 {
+				i := bytes.IndexByte(buf, '\n')
+				if i < 0 {
 					// Last line without trailing newline
 					if len(buf) > 0 {
-						fields := parseFields(buf, delimiter)
-						results <- fields
+						line := buf
+						if line[len(line)-1] == '\r' {
+							line = line[:len(line)-1]
+						}
+						if len(line) > 0 {
+							fields := parseFields(line, delimiter)
+							rows = append(rows, fields)
+						}
 					}
 					break
 				}
-				line := buf[:idx]
-				buf = buf[idx+1:]
 
-				// Skip empty lines
+				line := buf[:i]
+				buf = buf[i+1:]
+
 				if len(line) == 0 {
 					continue
 				}
-				// Trim \r
 				if line[len(line)-1] == '\r' {
 					line = line[:len(line)-1]
 				}
+				if len(line) == 0 {
+					continue
+				}
 
 				fields := parseFields(line, delimiter)
-				results <- fields
+				rows = append(rows, fields)
 			}
-		}(start, end)
+
+			batchResults[idx].rows = rows
+		}(w, start, end)
 	}
 
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
+	wg.Wait()
 
+	// Yield results in order
 	count := 0
 	limit := opts.Limit
-	for fields := range results {
-		if limit > 0 && count >= limit {
-			break
+	for _, batch := range batchResults {
+		for _, fields := range batch.rows {
+			if limit > 0 && count >= limit {
+				return nil
+			}
+			fn(fields)
+			count++
 		}
-		fn(fields)
-		count++
 	}
 
-	return parseErr
+	return nil
 }
 
 // streamSequential is the fallback for small files or single-worker mode.
