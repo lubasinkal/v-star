@@ -1,86 +1,96 @@
 package concurrency
 
 import (
+	"runtime"
 	"sync"
 
 	"github.com/lubasinkal/v-star/pkg/rates"
 	"github.com/lubasinkal/v-star/pkg/reader"
 )
 
-// WorkerPool processes CensusRecords in parallel
+// WorkerPool processes CensusRecords in parallel using goroutines.
 type WorkerPool struct {
-	workers    int
-	converter  rates.RateConverter
-	inputChan  chan reader.CensusRecord
-	resultChan chan float64
-	wg         sync.WaitGroup
+	workers   int
+	converter rates.RateConverter
+	wg        sync.WaitGroup
 }
 
-// NewWorkerPool creates a new worker pool with specified number of workers
+// NewWorkerPool creates a new worker pool with the specified number of workers.
+// If workers <= 0, defaults to runtime.NumCPU().
 func NewWorkerPool(workers int, converter rates.RateConverter) *WorkerPool {
+	if workers <= 0 {
+		workers = runtime.NumCPU()
+	}
 	return &WorkerPool{
-		workers:    workers,
-		converter:  converter,
-		inputChan:  make(chan reader.CensusRecord, workers*10),
-		resultChan: make(chan float64, workers*100), // Larger buffer for results
+		workers:   workers,
+		converter: converter,
 	}
 }
 
-// Start launches the worker goroutines
-func (wp *WorkerPool) Start() {
-	for i := 0; i < wp.workers; i++ {
-		wp.wg.Add(1)
-		go wp.worker()
-	}
-}
-
-// worker processes records from the input channel
-func (wp *WorkerPool) worker() {
-	defer wp.wg.Done()
-	for record := range wp.inputChan {
-		pv := wp.converter.PresentValue(record.SumAssured, record.Term)
-		wp.resultChan <- pv
-	}
-}
-
-// Submit adds a record to the processing queue
-func (wp *WorkerPool) Submit(record reader.CensusRecord) {
-	wp.inputChan <- record
-}
-
-// Close signals no more records will be submitted
-func (wp *WorkerPool) Close() {
-	close(wp.inputChan)
-}
-
-// Wait for all workers to finish and close result channel
-func (wp *WorkerPool) Wait() {
-	wp.wg.Wait()
-	close(wp.resultChan)
-}
-
-// CollectResults sums all results from the result channel
-func (wp *WorkerPool) CollectResults() float64 {
-	total := 0.0
-	for pv := range wp.resultChan {
-		total += pv
-	}
-	return total
-}
-
-// ProcessBatch processes a slice of records
-// For now, it calculates sequentially to ensure correctness
-// The worker pool structure is kept for future parallel implementation
-func ProcessBatch(records []reader.CensusRecord, converter rates.RateConverter, workers int) float64 {
+// ProcessBatch processes a slice of records in parallel using the worker pool.
+// It returns the total present value across all records.
+func (wp *WorkerPool) ProcessBatch(records []reader.CensusRecord) float64 {
 	if len(records) == 0 {
 		return 0
 	}
 
-	// Simple sequential calculation for now
-	// Worker pool will be implemented properly in Phase 2
+	if wp.workers == 1 || len(records) < 1000 {
+		return wp.processSequential(records)
+	}
+
+	return wp.processParallel(records)
+}
+
+// processSequential calculates PV without goroutine overhead for small batches.
+func (wp *WorkerPool) processSequential(records []reader.CensusRecord) float64 {
 	total := 0.0
 	for _, record := range records {
-		total += converter.PresentValue(record.SumAssured, record.Term)
+		total += wp.converter.PresentValue(record.SumAssured, record.Term)
 	}
 	return total
+}
+
+// processParallel distributes work across goroutines and collects partial sums.
+func (wp *WorkerPool) processParallel(records []reader.CensusRecord) float64 {
+	chunkSize := (len(records) + wp.workers - 1) / wp.workers
+	results := make(chan float64, wp.workers)
+
+	for w := 0; w < wp.workers; w++ {
+		start := w * chunkSize
+		end := start + chunkSize
+		if end > len(records) {
+			end = len(records)
+		}
+		if start >= len(records) {
+			break
+		}
+
+		wp.wg.Add(1)
+		go func(chunk []reader.CensusRecord) {
+			defer wp.wg.Done()
+			partial := 0.0
+			for _, record := range chunk {
+				partial += wp.converter.PresentValue(record.SumAssured, record.Term)
+			}
+			results <- partial
+		}(records[start:end])
+	}
+
+	go func() {
+		wp.wg.Wait()
+		close(results)
+	}()
+
+	total := 0.0
+	for partial := range results {
+		total += partial
+	}
+	return total
+}
+
+// ProcessBatch is a convenience function that creates a WorkerPool and processes records.
+// Workers <= 0 defaults to runtime.NumCPU().
+func ProcessBatch(records []reader.CensusRecord, converter rates.RateConverter, workers int) float64 {
+	wp := NewWorkerPool(workers, converter)
+	return wp.ProcessBatch(records)
 }
