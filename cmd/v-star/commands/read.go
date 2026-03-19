@@ -62,7 +62,7 @@ func Read(args []string) {
 
 	start := time.Now()
 
-	err := reader.StreamCSV(filepath, reader.StreamOptions{Header: header, Limit: limit}, func(r reader.CensusRecord) {
+	err := reader.StreamCensus(filepath, reader.CSVOptions{Header: header, Limit: limit}, func(r reader.CensusRecord) {
 		count++
 		records = append(records, r)
 	})

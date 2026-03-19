@@ -48,7 +48,7 @@ func benchmarkCSV() {
 	start := time.Now()
 	var count int
 
-	err := reader.StreamCSV(filepath, reader.StreamOptions{Header: true, Limit: 1000000}, func(r reader.CensusRecord) {
+	err := reader.StreamCensus(filepath, reader.CSVOptions{Header: true, Limit: 1000000}, func(r reader.CensusRecord) {
 		count++
 	})
 
