@@ -7,7 +7,14 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"unsafe"
 )
+
+var fieldSlicePool = sync.Pool{
+	New: func() interface{} {
+		return make([]string, 0, 32)
+	},
+}
 
 // CSVOptions configures CSV reading behavior.
 type CSVOptions struct {
@@ -249,6 +256,53 @@ func streamSequential(f *os.File, opts CSVOptions, delimiter byte, fn func([]str
 // Handles quoted fields (double-quotes). Returns field slices into the original buffer.
 // The caller must copy field values if they need to retain them beyond the callback.
 func parseFields(line []byte, delimiter byte) []string {
+	// Fast path: check for quotes in a single scan
+	hasQuotes := false
+	for i := 0; i < len(line); i++ {
+		if line[i] == '"' {
+			hasQuotes = true
+			break
+		}
+	}
+
+	if !hasQuotes {
+		return parseFieldsFast(line, delimiter)
+	}
+
+	// Slow path: handle quoted fields
+	return parseFieldsQuoted(line, delimiter)
+}
+
+// parseFieldsFast handles lines without quotes - single pass, no allocations for counting
+func parseFieldsFast(line []byte, delimiter byte) []string {
+	// Count fields in one pass
+	count := 0
+	for i := 0; i < len(line); i++ {
+		if line[i] == delimiter {
+			count++
+		}
+	}
+
+	// Pre-allocate result slice
+	fields := make([]string, count+1)
+	start := 0
+	idx := 0
+
+	for i := 0; i < len(line); i++ {
+		if line[i] == delimiter {
+			fields[idx] = unsafe.String(unsafe.SliceData(line[start:i]), len(line[start:i]))
+			idx++
+			start = i + 1
+		}
+	}
+	// Last field
+	fields[idx] = unsafe.String(unsafe.SliceData(line[start:]), len(line[start:]))
+
+	return fields
+}
+
+// parseFieldsQuoted handles lines with quoted fields
+func parseFieldsQuoted(line []byte, delimiter byte) []string {
 	// Count fields (respecting quoted delimiters)
 	count := 0
 	inQuotes := false
@@ -270,30 +324,15 @@ func parseFields(line []byte, delimiter byte) []string {
 		if c == '"' {
 			inQuotes = !inQuotes
 		} else if c == delimiter && !inQuotes {
-			fields[idx] = internString(line[start:i])
+			fields[idx] = unsafe.String(unsafe.SliceData(line[start:i]), len(line[start:i]))
 			idx++
 			start = i + 1
 		}
 	}
 	// Last field
-	fields[idx] = internString(line[start:])
+	fields[idx] = unsafe.String(unsafe.SliceData(line[start:]), len(line[start:]))
 
 	return fields
-}
-
-// internString returns an interned string for common values to reduce allocations.
-var stringCache = make(map[string]string)
-
-func internString(b []byte) string {
-	s := string(b)
-	if cached, ok := stringCache[s]; ok {
-		return cached
-	}
-	// Limit cache size to prevent unbounded growth
-	if len(stringCache) < 10000 {
-		stringCache[s] = s
-	}
-	return s
 }
 
 // GetHeaders reads the header row and returns column names.
