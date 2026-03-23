@@ -2,7 +2,6 @@ package reader
 
 import (
 	"os"
-	"sync"
 	"testing"
 )
 
@@ -80,14 +79,9 @@ func BenchmarkStreamCSVParallel(b *testing.B) {
 	b.ResetTimer()
 	b.SetBytes(288 * 1024 * 1024)
 	for i := 0; i < b.N; i++ {
-		count := 0
-		var mu sync.Mutex
-		StreamCSVParallel(filepath, CSVOptions{Header: true, Limit: 5000000}, func(fields []string) {
-			mu.Lock()
-			count++
-			mu.Unlock()
+		StreamCSVWithPV(filepath, CSVOptions{Header: true, Limit: 5000000}, func(sumAssured float64, term int) float64 {
+			return sumAssured
 		})
-		_ = count
 	}
 }
 
