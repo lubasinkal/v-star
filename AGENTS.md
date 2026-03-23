@@ -54,14 +54,15 @@ cmd/
   generate/        # Data generation utilities
 
 pkg/
-  rates/           # Interest rate calculations, discount factors
-  stochastic/      # Monte Carlo simulations, geometric Brownian motion
-  reader/          # CSV parsing (streaming, parallel)
-  writer/          # JSON output streaming
-  concurrency/     # Worker pool for parallel processing
-  models/          # Data structures (CensusRecord)
-  contingencies/   # (reserved)
-  mortality/       # (reserved)
+  rates/           # Interest rate calculations, discount factors, DiscountFactor interface
+  stochastic/     # Monte Carlo simulations, geometric Brownian motion
+  mortality/      # Mortality tables, qx/px calculations, CSV loading
+  annuities/      # Annuity calculations (whole life, term, deferred)
+  reserves/       # Policy reserves (net premium, gross premium, prospective)
+  reader/         # CSV parsing (streaming, parallel)
+  writer/         # JSON output streaming
+  concurrency/    # Worker pool for parallel processing
+  models/         # Data structures (CensusRecord)
 ```
 
 ## Code Style Guidelines
