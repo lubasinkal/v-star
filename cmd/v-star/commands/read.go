@@ -192,102 +192,25 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 }
 
 func readWithoutMortality(filepath string, interest float64, header bool, limit int, output string, benchmark bool, start time.Time) {
-	converter := rates.RateConverter{EffectiveRate: interest}
-
-	type PVResult struct {
-		Age          int
-		Sex          string
-		PolicyType   string
-		SumAssured   float64
-		Term         int
-		PresentValue float64
-	}
-
-	chunkSize := 50000
-	if limit > 0 && limit < chunkSize {
-		chunkSize = limit
-	}
+	converter := rates.NewRateConverter(interest)
 
 	opts := reader.StreamOptions{
-		Header:    header,
-		Limit:     limit,
-		ChunkSize: chunkSize,
-		Workers:   runtime.NumCPU(),
+		Header: header,
+		Limit:  limit,
 	}
 
-	var mu sync.Mutex
-	var totalPV float64
-	count := 0
-	displayed := 0
-	displayLimit := 5
-	allResults := make([]PVResult, 0, limit)
-	if limit > 0 && limit < 1000 {
-		displayLimit = limit
-	}
-
-	_, err := reader.StreamCensusChunked(filepath, opts, func(chunk []reader.CensusRecord) error {
-		results := make([]PVResult, len(chunk))
-		for i, r := range chunk {
-			pv := converter.PresentValue(r.SumAssured, r.Term)
-			results[i] = PVResult{
-				Age:          r.Age,
-				Sex:          r.Sex,
-				PolicyType:   r.PolicyType,
-				SumAssured:   r.SumAssured,
-				Term:         r.Term,
-				PresentValue: pv,
-			}
-		}
-
-		mu.Lock()
-		for _, r := range results {
-			totalPV += r.PresentValue
-			if displayed < displayLimit {
-				fmt.Printf("%d: Age=%d, Sex=%s, Type=%s, Sum=%.2f, Term=%d, PV=%.2f\n",
-					displayed+1, r.Age, r.Sex, r.PolicyType, r.SumAssured, r.Term, r.PresentValue)
-				displayed++
-			}
-			allResults = append(allResults, r)
-		}
-		count += len(results)
-		mu.Unlock()
-		return nil
-	})
-
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
-	}
+	totalPV, count := reader.StreamCensusWithPV(filepath, opts, converter.PresentValue)
 
 	duration := time.Since(start)
-
-	if output == "json" {
-		jsonRecords := make([]writer.JSONRecord, len(allResults))
-		for i, r := range allResults {
-			jsonRecords[i] = writer.JSONRecord{
-				Age:          r.Age,
-				Sex:          r.Sex,
-				PolicyType:   r.PolicyType,
-				SumAssured:   r.SumAssured,
-				Term:         r.Term,
-				PresentValue: r.PresentValue,
-			}
-		}
-		if err := writer.StreamJSON(jsonRecords, os.Stdout); err != nil {
-			fmt.Printf("Error writing JSON: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println()
-	} else {
-		fmt.Printf("Processed %d records\n", count)
-		fmt.Printf("Total Present Value: %.2f\n", totalPV)
-	}
 
 	if benchmark {
 		fmt.Printf("\n=== Benchmark Results ===\n")
 		fmt.Printf("Total rows: %d\n", count)
 		fmt.Printf("Duration: %v\n", duration)
 		fmt.Printf("Throughput: %.0f rows/sec\n", float64(count)/duration.Seconds())
+		fmt.Printf("Total Present Value: %.2f\n", totalPV)
+	} else {
+		fmt.Printf("Processed %d records\n", count)
 		fmt.Printf("Total Present Value: %.2f\n", totalPV)
 	}
 }
