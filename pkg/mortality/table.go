@@ -106,7 +106,10 @@ func loadCSVToMemory(filepath string) (*Table, error) {
 	colMap := detectColumns(header)
 	ageIdx := colMap["age"]
 	qxIdx := colMap["qx"]
-	pxIdx := colMap["px"]
+	pxIdx, hasPx := colMap["px"]
+	if !hasPx {
+		pxIdx = -1
+	}
 	if ageIdx < 0 {
 		return nil, errors.New("age column required")
 	}
@@ -178,7 +181,10 @@ func streamCSVSmall(file *os.File, fn func(age int, qx float64)) error {
 	colMap := detectColumns(header)
 	ageIdx := colMap["age"]
 	qxIdx := colMap["qx"]
-	pxIdx := colMap["px"]
+	pxIdx, hasPx := colMap["px"]
+	if !hasPx {
+		pxIdx = -1
+	}
 	if qxIdx < 0 && pxIdx < 0 {
 		return errors.New("either qx or px column required")
 	}
@@ -242,7 +248,10 @@ func streamCSVParallel(filepath string, fn func(age int, qx float64)) error {
 	colMap := detectColumns(header)
 	ageIdx := colMap["age"]
 	qxIdx := colMap["qx"]
-	pxIdx := colMap["px"]
+	pxIdx, hasPx := colMap["px"]
+	if !hasPx {
+		pxIdx = -1
+	}
 	if ageIdx < 0 || (qxIdx < 0 && pxIdx < 0) {
 		return errors.New("invalid column structure")
 	}
@@ -280,18 +289,34 @@ func streamCSVParallel(filepath string, fn func(age int, qx float64)) error {
 }
 
 func parseLines(data []byte) [][]byte {
+	// Skip UTF-8 BOM if present
+	if len(data) >= 3 && data[0] == 0xef && data[1] == 0xbb && data[2] == 0xbf {
+		data = data[3:]
+	}
+
 	var lines [][]byte
 	start := 0
 	for i := 0; i < len(data); i++ {
 		if data[i] == '\n' {
 			if i > start {
-				lines = append(lines, data[start:i])
+				line := data[start:i]
+				// Trim trailing \r (Windows line endings)
+				if len(line) > 0 && line[len(line)-1] == '\r' {
+					line = line[:len(line)-1]
+				}
+				lines = append(lines, line)
 			}
 			start = i + 1
 		}
 	}
 	if start < len(data) {
-		lines = append(lines, data[start:])
+		line := data[start:]
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+		if len(line) > 0 {
+			lines = append(lines, line)
+		}
 	}
 	return lines
 }
