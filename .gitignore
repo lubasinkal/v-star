@@ -1,3 +1,42 @@
+# Binaries
+v-star.exe
 /v-star
+
+# Large data files (except tables)
 *.csv
-/v-star.exe
+*.xlsx
+*.parquet
+
+# Go build
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Ruff cache
+.ruff_cache/
+
+# Temporary files
+tmp/
+temp/
