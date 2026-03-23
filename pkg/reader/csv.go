@@ -249,23 +249,51 @@ func streamSequential(f *os.File, opts CSVOptions, delimiter byte, fn func([]str
 // Handles quoted fields (double-quotes). Returns field slices into the original buffer.
 // The caller must copy field values if they need to retain them beyond the callback.
 func parseFields(line []byte, delimiter byte) []string {
-	fields := make([]string, 0, 8)
-	start := 0
+	// Count fields (respecting quoted delimiters)
+	count := 0
 	inQuotes := false
+	for i := 0; i < len(line); i++ {
+		if line[i] == '"' {
+			inQuotes = !inQuotes
+		} else if line[i] == delimiter && !inQuotes {
+			count++
+		}
+	}
+
+	fields := make([]string, count+1)
+	start := 0
+	idx := 0
+	inQuotes = false
 
 	for i := 0; i < len(line); i++ {
 		c := line[i]
 		if c == '"' {
 			inQuotes = !inQuotes
 		} else if c == delimiter && !inQuotes {
-			fields = append(fields, string(line[start:i]))
+			fields[idx] = internString(line[start:i])
+			idx++
 			start = i + 1
 		}
 	}
 	// Last field
-	fields = append(fields, string(line[start:]))
+	fields[idx] = internString(line[start:])
 
 	return fields
+}
+
+// internString returns an interned string for common values to reduce allocations.
+var stringCache = make(map[string]string)
+
+func internString(b []byte) string {
+	s := string(b)
+	if cached, ok := stringCache[s]; ok {
+		return cached
+	}
+	// Limit cache size to prevent unbounded growth
+	if len(stringCache) < 10000 {
+		stringCache[s] = s
+	}
+	return s
 }
 
 // GetHeaders reads the header row and returns column names.
