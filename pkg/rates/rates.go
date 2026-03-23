@@ -4,9 +4,24 @@ import (
 	"math"
 )
 
-// RateConverter holds effective interest rates
+type DiscountFactor interface {
+	Discount(term int) float64
+}
+
 type RateConverter struct {
 	EffectiveRate float64 // 'i'
+}
+
+func (r RateConverter) Discount(term int) float64 {
+	if term <= 0 {
+		return 1
+	}
+	v := r.V()
+	result := 1.0
+	for i := 0; i < term; i++ {
+		result *= v
+	}
+	return result
 }
 
 // V calculates the standard discount factor: v = 1 / (1 + i)

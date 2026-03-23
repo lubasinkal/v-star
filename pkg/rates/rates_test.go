@@ -61,6 +61,32 @@ func TestVStar(t *testing.T) {
 	}
 }
 
+func TestDiscount(t *testing.T) {
+	rc := RateConverter{EffectiveRate: 0.05}
+	v := rc.V()
+
+	tests := []struct {
+		term int
+		want float64
+	}{
+		{0, 1.0},
+		{1, v},
+		{5, v * v * v * v * v},
+		{10, math.Pow(v, 10)},
+	}
+
+	for _, tt := range tests {
+		t.Run("", func(t *testing.T) {
+			got := rc.Discount(tt.term)
+			if math.Abs(got-tt.want) > 1e-9 {
+				t.Errorf("Discount(%d) = %v, want %v", tt.term, got, tt.want)
+			}
+		})
+	}
+}
+
+var _ DiscountFactor = RateConverter{}
+
 // Benchmark tests for the "1 Billion Row Challenge" mindset
 func BenchmarkV(b *testing.B) {
 	rc := RateConverter{EffectiveRate: 0.05}
