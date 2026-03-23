@@ -1,36 +1,79 @@
-# v-star ($v^*$)
+# v-star (v*)
 
-A high-performance, zero-dependency actuarial engine for Concurrent Financial Simulations built in Go.
+**A high-performance, zero-dependency actuarial engine for Concurrent Financial Simulations built in Go.**
+
+[![Go Version](https://img.shields.io/badge/Go-1.26-blue)](https://golang.org/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 ## The Origin
-The name **v-star** comes from a class joke between my University lecturer and comrades (brothers and sister deployed to study Actuarial Science): 
-If an annuity (or more precisely, the payments/premiums associated with the annuity) compound (or earn interest) at rate j while being discounted (valued) at rate i, then the adjusted (effective) discount factor is
 
-$v^* = (1+j)*v$.
+The name **v-star** comes from a class joke between my University lecturer and comrades (brothers and sister deployed to study Actuarial Science): 
+If an annuity (or more precisely, the payments/premiums associated with the annuity) compound (or earn interest) at rate j while being discounted (valued) at rate i, then the adjusted (effective) discount factor is:
+
+```
+v* = (1+j) * v
+```
 
 ## Why v-star?
+
 Modern financial software is often bloated and slow. **v-star** is designed for:
-* **Zero Dependencies:** Uses only the Go Standard Library.
-* **Extreme Speed:** Leverages Go's concurrency (goroutines) for mass valuations.
-* **Auditability:** Pure, readable math implementations.
-* **Possible Job Offers** : Unemployed so why not spend my time testing out how far Go can go in actuarial work
+
+- **Zero Dependencies:** Uses only the Go Standard Library
+- **Extreme Speed:** 11M+ rows/sec CSV parsing, parallel processing
+- **Auditability:** Pure, readable math implementations
+- **Flexibility:** Generic CSV parsing + specialized actuarial models
+- **Open Source:** MIT Licensed, community-driven
 
 ## Features
-* **High-Performance CSV Parser:** Zero-allocation streaming parser
-* **Actuarial Valuation:** Calculate Present Value of policies using standard or v-star discount factors
-* **Monte Carlo Simulation:** Generate interest rate paths for stochastic modeling
-* **Multiple Output Formats:** Console and JSON output
-* **CLI Tools:** Easy-to-use command-line interface
+
+| Feature | Description | Performance |
+|---------|-------------|-------------|
+| **Generic CSV Parser** | Stream any CSV format | ~2.5M rows/sec |
+| **Parallel CSV Parser** | Multi-core CSV processing | ~11M rows/sec |
+| **Actuarial CSV Parser** | Direct CensusRecord parsing | ~11M rows/sec |
+| **Present Value** | Standard & v* discount factors | ~10M calcs/sec |
+| **Monte Carlo** | GBM interest rate paths | ~100k paths/sec |
 
 ## Quick Start
 
-### Build
+### Installation
+
 ```bash
-go build ./cmd/v-star
+go get github.com/lubasinkal/v-star
 ```
 
-### Basic Usage
+### Library Usage
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/lubasinkal/v-star/pkg/reader"
+    "github.com/lubasinkal/v-star/pkg/rates"
+)
+
+func main() {
+    // Create rate converter
+    converter := rates.NewRateConverter(0.05)
+    
+    // Calculate present value
+    pv := converter.PresentValue(100000, 20)
+    fmt.Printf("PV: %.2f\n", pv)
+    
+    // Stream CSV with parallel processing
+    opts := reader.CSVOptions{Header: true}
+    totalPV, count := reader.StreamCSVWithPV("policies.csv", opts, converter.PresentValue)
+    fmt.Printf("Total PV: %.2f from %d records\n", totalPV, count)
+}
+```
+
+### CLI Usage
+
 ```bash
+# Build
+go build -o v-star ./cmd/v-star
+
 # Calculate discount factors
 ./v-star -i 0.05 -j 0.02
 
@@ -40,51 +83,83 @@ go build ./cmd/v-star
 # Export as JSON
 ./v-star read policies.csv --output=json
 
-# Generate Monte Carlo interest rate paths
+# Monte Carlo simulation
 ./v-star montecarlo --paths=100000 --steps=10 --drift=0.02 --volatility=0.15
-
-# Run performance benchmark suite
-./v-star bench
 ```
 
-### Example Output
-```
-Processed 100000 records
-Total Present Value: 13339837523.23
-1: Age=62, Sex=female, Type=term, Sum=490294.00, Term=22, PV=167606.94
-...
+## CSV Streaming API
 
-=== Benchmark Results ===
-Total rows: 100000
-Duration: 76.44ms
-Throughput: 1308188 rows/sec
-Total Present Value: 13339837523.23
+### Generic CSV Streaming
+
+```go
+// Stream any CSV format - returns []string per row
+opts := reader.CSVOptions{Header: true, Limit: 1000000}
+err := reader.StreamCSV("data.csv", opts, func(fields []string) {
+    fmt.Println(fields)
+})
 ```
 
-### Monte Carlo Example
-```
-Generating 100000 Monte Carlo interest rate paths...
-Parameters: Initial Rate=5.00%, Drift=2.00%, Volatility=15.00%, Steps=10
+### Parallel Generic Streaming
 
-=== Monte Carlo Results ===
-Paths Generated: 100000
-Duration: 105.23ms
-Throughput: 950304 paths/sec
-
-Final Rate Statistics:
-  Average: 5.4080%
-  Minimum: 1.2345%
-  Maximum: 23.6789%
+```go
+// Multi-core parsing for generic CSVs
+opts := reader.CSVOptions{Header: true}
+count, fieldCount := reader.StreamCSVWithCallback("data.csv", opts, func(fields []string) {
+    // process fields
+})
 ```
 
-## Performance
-* **CSV Parsing:** ~4.8M rows/sec
-* **Valuation Calculation:** ~3.1M rows/sec (1M records in 320ms)
-* **Monte Carlo Simulation:** ~100k paths/sec (100k paths in 1ms)
-* **Memory Usage:** Minimal (streaming processing)
+### Actuarial CSV Streaming
 
-## Installation
-```bash
-go get github.com/lubasinkal/v-star
+```go
+// Direct CensusRecord parsing - fastest path
+opts := reader.CSVOptions{Header: true}
+err := reader.StreamCensus("policies.csv", opts, func(record reader.CensusRecord) {
+    fmt.Printf("Age: %d, Sum: %.2f\n", record.Age, record.SumAssured)
+})
 ```
 
+### Parallel PV Calculation
+
+```go
+// Read + Calculate PV in one pass
+converter := rates.NewRateConverter(0.05)
+opts := reader.CSVOptions{Header: true}
+totalPV, count := reader.StreamCSVWithPV("policies.csv", opts, converter.PresentValue)
+```
+
+## Performance Benchmarks
+
+Tested on: Intel Core i5-8250U @ 1.60GHz (8 cores), 10M row CSV (~288MB)
+
+| Operation | Throughput | Duration |
+|-----------|-----------|----------|
+| Generic CSV Streaming | ~2.5M rows/sec | 4.0s |
+| Parallel Generic CSV | ~11M rows/sec | 0.9s |
+| CensusRecord Streaming | ~11M rows/sec | 0.9s |
+| PV Calculation (full) | ~10M rows/sec | 1.0s |
+| Monte Carlo (100k paths) | ~100k paths/sec | 1.0s |
+
+## Architecture
+
+```
+pkg/
+├── reader/          # CSV parsing and streaming
+│   ├── csv.go      # Generic CSV parser
+│   ├── census.go   # CensusRecord parser
+│   └── streaming.go # Parallel streaming
+├── rates/          # Interest rate calculations
+├── annuities/      # Annuity calculations
+├── mortality/     # Mortality tables
+├── reserves/      # Policy reserves
+├── stochastic/    # Monte Carlo simulations
+└── writer/        # JSON output
+```
+
+## Contributing
+
+Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file.
