@@ -108,22 +108,32 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 		return 0, 0
 	}
 
+	chunkSize := opts.ChunkSize
+	if chunkSize <= 0 {
+		chunkSize = 100000
+	}
+
+	if dataSize < int64(chunkSize)*100 {
+		return streamSequentialWithPV(f, opts, headerOffset, delimiter, pvFn)
+	}
+
 	numWorkers := min(runtime.NumCPU(), 8)
 
 	chunkSizeBytes := dataSize / int64(numWorkers)
 	type job struct {
+		id    int
 		start int64
 		end   int64
 	}
 
 	jobs := make([]job, numWorkers)
-	for w := range numWorkers {
+	for w := 0; w < numWorkers; w++ {
 		start := headerOffset + int64(w)*chunkSizeBytes
 		end := start + chunkSizeBytes
 		if w == numWorkers-1 {
 			end = fileSize
 		}
-		jobs[w] = job{start: start, end: end}
+		jobs[w] = job{id: w, start: start, end: end}
 	}
 
 	var wg sync.WaitGroup
@@ -132,46 +142,50 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 	var countMu sync.Mutex
 
 	processJob := func(j job) {
-		bufSize := int(j.end - j.start)
-		buf := make([]byte, bufSize)
-		n, err := f.ReadAt(buf, j.start)
+		overlap := int64(8192)
+		readStart := j.start
+		readEnd := j.end
+
+		if j.end < fileSize {
+			readEnd = j.end + overlap
+			if readEnd > fileSize {
+				readEnd = fileSize
+			}
+		}
+
+		buf := make([]byte, readEnd-readStart)
+		n, err := f.ReadAt(buf, readStart)
 		if err != nil && err != io.EOF {
 			return
 		}
 		buf = buf[:n]
 
-		if j.start > headerOffset && len(buf) > 0 {
-			// Only skip if previous chunk ended mid-line (byte before start is not \n)
-			if buf[0] != '\n' {
-				i := bytes.IndexByte(buf, '\n')
-				if i >= 0 {
-					buf = buf[i+1:]
-				}
-			}
-		}
-		if j.end < fileSize {
-			lastNL := bytes.LastIndexByte(buf, '\n')
-			if lastNL >= 0 {
-				buf = buf[:lastNL]
+		offset := 0
+		if j.id > 0 && len(buf) > 0 && buf[0] != '\n' {
+			newlineIdx := bytes.IndexByte(buf, '\n')
+			if newlineIdx >= 0 {
+				offset = newlineIdx + 1
 			}
 		}
 
+		originalEnd := int(j.end - j.start)
 		localPV := 0.0
 		localCount := 0
 		limit := opts.Limit
 
-		for len(buf) > 0 {
+		processedBytes := offset
+
+		for processedBytes < originalEnd && processedBytes < len(buf) {
 			if limit > 0 && localCount >= limit {
 				break
 			}
-			i := bytes.IndexByte(buf, '\n')
+			newlineIdx := bytes.IndexByte(buf[processedBytes:], '\n')
 			var line []byte
-			if i < 0 {
-				line = buf
-				buf = nil
+			if newlineIdx < 0 {
+				break
 			} else {
-				line = buf[:i]
-				buf = buf[i+1:]
+				line = buf[processedBytes : processedBytes+newlineIdx]
+				processedBytes += newlineIdx + 1
 			}
 
 			if len(line) > 0 && line[len(line)-1] == '\r' {
@@ -194,7 +208,7 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 		countMu.Unlock()
 	}
 
-	for w := range numWorkers {
+	for w := 0; w < numWorkers; w++ {
 		wg.Add(1)
 		go func(j job) {
 			defer wg.Done()
@@ -383,6 +397,49 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 	}
 
 	return int(totalCount), nil
+}
+
+func streamSequentialWithPV(f *os.File, opts StreamOptions, headerOffset int64, delimiter byte, pvFn func(sumAssured float64, term int) float64) (float64, int) {
+	_, err := f.Seek(headerOffset, io.SeekStart)
+	if err != nil {
+		return 0, 0
+	}
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 64*1024*1024), 64*1024*1024)
+
+	totalPV := 0.0
+	totalCount := 0
+	limit := opts.Limit
+
+	for scanner.Scan() {
+		if limit > 0 && totalCount >= limit {
+			break
+		}
+
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+
+		if len(line) == 0 {
+			continue
+		}
+
+		record, err := parseCensusFastBytes(line, delimiter)
+		if err != nil {
+			continue
+		}
+
+		totalPV += pvFn(record.SumAssured, record.Term)
+		totalCount++
+	}
+
+	return totalPV, totalCount
 }
 
 var _ error = errors.New("")
