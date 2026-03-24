@@ -100,22 +100,38 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 		return 0, 0
 	}
 
+	chunkSize := opts.Limit
+	if chunkSize <= 0 {
+		chunkSize = 100000
+	}
+
+	if dataSize < int64(chunkSize)*100 {
+		return streamCSVSequentialWithPV(f, opts, headerOffset, delimiter, pvFn)
+	}
+
 	numWorkers := max(min(runtime.NumCPU(), 8), 1)
 
-	chunkSize := dataSize / int64(numWorkers)
+	chunkSizeBytes := dataSize / int64(numWorkers)
+	overlap := 8192
 	type job struct {
+		id    int
 		start int64
 		end   int64
 	}
 
 	jobs := make([]job, numWorkers)
 	for w := 0; w < numWorkers; w++ {
-		start := headerOffset + int64(w)*chunkSize
-		end := start + chunkSize
-		if w == numWorkers-1 {
-			end = fileSize
+		start := headerOffset + int64(w)*chunkSizeBytes
+		end := start + chunkSizeBytes
+		hasOverlap := w < numWorkers-1
+
+		if hasOverlap {
+			end = end + int64(overlap)
+			if end > fileSize {
+				end = fileSize
+			}
 		}
-		jobs[w] = job{start: start, end: end}
+		jobs[w] = job{id: w, start: start, end: end}
 	}
 
 	var wg sync.WaitGroup
@@ -136,17 +152,13 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 			}
 			buf = buf[:n]
 
-			if j.start > headerOffset {
+			originalEnd := int(chunkSizeBytes)
+
+			offset := 0
+			if j.id > 0 && len(buf) > 0 && buf[0] != '\n' {
 				i := bytes.IndexByte(buf, '\n')
 				if i >= 0 {
-					buf = buf[i+1:]
-				}
-			}
-
-			if j.end < fileSize {
-				lastNL := bytes.LastIndexByte(buf, '\n')
-				if lastNL >= 0 {
-					buf = buf[:lastNL]
+					offset = i + 1
 				}
 			}
 
@@ -154,19 +166,18 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 			localCount := 0
 			limit := opts.Limit
 
-			for len(buf) > 0 {
+			processedBytes := offset
+			for processedBytes < originalEnd && processedBytes < len(buf) {
 				if limit > 0 && localCount >= limit {
 					break
 				}
-				i := bytes.IndexByte(buf, '\n')
+				i := bytes.IndexByte(buf[processedBytes:], '\n')
 				var line []byte
 				if i < 0 {
-					line = buf
-					buf = nil
-				} else {
-					line = buf[:i]
-					buf = buf[i+1:]
+					break
 				}
+				line = buf[processedBytes : processedBytes+i]
+				processedBytes += i + 1
 
 				if len(line) > 0 && line[len(line)-1] == '\r' {
 					line = line[:len(line)-1]
@@ -191,6 +202,49 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 	}
 
 	wg.Wait()
+
+	return totalPV, totalCount
+}
+
+func streamCSVSequentialWithPV(f *os.File, opts CSVOptions, headerOffset int64, delimiter byte, pvFn func(sumAssured float64, term int) float64) (float64, int) {
+	_, err := f.Seek(headerOffset, io.SeekStart)
+	if err != nil {
+		return 0, 0
+	}
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 64*1024*1024), 64*1024*1024)
+
+	totalPV := 0.0
+	totalCount := 0
+	limit := opts.Limit
+
+	for scanner.Scan() {
+		if limit > 0 && totalCount >= limit {
+			break
+		}
+
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+
+		if len(line) == 0 {
+			continue
+		}
+
+		record, err := parseCensusFastBytes(line, delimiter)
+		if err != nil {
+			continue
+		}
+
+		totalPV += pvFn(record.SumAssured, record.Term)
+		totalCount++
+	}
 
 	return totalPV, totalCount
 }
