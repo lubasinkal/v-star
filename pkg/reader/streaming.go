@@ -272,6 +272,7 @@ func streamSequentialChunked(f *os.File, opts StreamOptions, headerOffset int64,
 func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, delimiter byte, processFn ChunkProcessor, numWorkers int, dataSize int) (int, error) {
 	chunkSize := opts.ChunkSize
 	chunkSizeBytes := dataSize / numWorkers
+	overlap := 8192
 
 	type job struct {
 		id    int
@@ -283,8 +284,13 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 	for w := range numWorkers {
 		start := headerOffset + int64(w)*int64(chunkSizeBytes)
 		end := start + int64(chunkSizeBytes)
-		if w == numWorkers-1 {
-			end = int64(dataSize) + headerOffset
+		hasOverlap := w < numWorkers-1
+
+		if hasOverlap {
+			end = end + int64(overlap)
+			if end > int64(dataSize)+headerOffset {
+				end = int64(dataSize) + headerOffset
+			}
 		}
 		jobs[w] = job{id: w, start: start, end: end}
 	}
@@ -295,48 +301,37 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 	var firstErr error
 
 	processJob := func(job job) ([]CensusRecord, error) {
-		bufSize := int(job.end - job.start)
+		readStart := job.start
+		readEnd := job.end
+
+		bufSize := int(readEnd - readStart)
 		buf := make([]byte, bufSize)
-		n, err := f.ReadAt(buf, job.start)
+		n, err := f.ReadAt(buf, readStart)
 		if err != nil && err != io.EOF {
 			return nil, err
 		}
 		buf = buf[:n]
 
-		if job.start > headerOffset {
+		originalEnd := int(chunkSizeBytes)
+
+		offset := 0
+		if job.id > 0 && len(buf) > 0 && buf[0] != '\n' {
 			i := bytes.IndexByte(buf, '\n')
 			if i >= 0 {
-				buf = buf[i+1:]
-			}
-		}
-
-		if job.end < int64(dataSize)+headerOffset {
-			lastNL := bytes.LastIndexByte(buf, '\n')
-			if lastNL >= 0 {
-				buf = buf[:lastNL]
+				offset = i + 1
 			}
 		}
 
 		records := make([]CensusRecord, 0, chunkSize)
-		for len(buf) > 0 {
-			i := bytes.IndexByte(buf, '\n')
+		processedBytes := offset
+		for processedBytes < originalEnd && processedBytes < len(buf) {
+			i := bytes.IndexByte(buf[processedBytes:], '\n')
+			var line []byte
 			if i < 0 {
-				if len(buf) > 0 {
-					line := buf
-					if len(line) > 0 && line[len(line)-1] == '\r' {
-						line = line[:len(line)-1]
-					}
-					if len(line) > 0 {
-						if r, err := parseCensusFastBytes(line, delimiter); err == nil {
-							records = append(records, r)
-						}
-					}
-				}
 				break
 			}
-
-			line := buf[:i]
-			buf = buf[i+1:]
+			line = buf[processedBytes : processedBytes+i]
+			processedBytes += i + 1
 
 			if len(line) > 0 && line[len(line)-1] == '\r' {
 				line = line[:len(line)-1]

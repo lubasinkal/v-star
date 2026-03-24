@@ -106,6 +106,7 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 
 	// Parallel: each goroutine reads its chunk via ReadAt (parallel-safe)
 	chunkSize := dataSize / int64(numWorkers)
+	overlap := int64(8192)
 	type batchResult struct {
 		records []CensusRecord
 	}
@@ -115,8 +116,13 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 	for w := 0; w < numWorkers; w++ {
 		start := headerOffset + int64(w)*chunkSize
 		end := start + chunkSize
-		if w == numWorkers-1 {
-			end = fileSize
+		hasOverlap := end < fileSize
+
+		if hasOverlap {
+			end = end + overlap
+			if end > fileSize {
+				end = fileSize
+			}
 		}
 
 		wg.Add(1)
@@ -132,45 +138,30 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 			}
 			buf = buf[:n]
 
-			// Skip partial line at start (except for first chunk)
-			if start > headerOffset {
-				i := bytes.IndexByte(buf, '\n')
-				if i < 0 {
-					return
-				}
-				buf = buf[i+1:]
-			}
+			originalEnd := int(chunkSize)
 
-			// Trim trailing partial line
-			if end < fileSize {
-				lastNL := bytes.LastIndexByte(buf, '\n')
-				if lastNL >= 0 {
-					buf = buf[:lastNL]
-				} else {
-					buf = nil
+			// Skip partial line at start (except for first chunk)
+			offset := 0
+			if start > headerOffset && len(buf) > 0 && buf[0] != '\n' {
+				i := bytes.IndexByte(buf, '\n')
+				if i >= 0 {
+					offset = i + 1
 				}
 			}
 
 			// Pre-allocate batch based on estimated line count (~45 bytes/line)
-			estLines := max(len(buf)/45, 1024)
+			estLines := max(originalEnd/45, 1024)
 			batch := make([]CensusRecord, 0, estLines)
 
-			for len(buf) > 0 {
-				i := bytes.IndexByte(buf, '\n')
+			processedBytes := offset
+			for processedBytes < originalEnd && processedBytes < len(buf) {
+				i := bytes.IndexByte(buf[processedBytes:], '\n')
+				var line []byte
 				if i < 0 {
-					if len(buf) > 0 {
-						if buf[len(buf)-1] == '\r' {
-							buf = buf[:len(buf)-1]
-						}
-						record, err := parseCensusFastBytes(buf, delimiter)
-						if err == nil {
-							batch = append(batch, record)
-						}
-					}
 					break
 				}
-				line := buf[:i]
-				buf = buf[i+1:]
+				line = buf[processedBytes : processedBytes+i]
+				processedBytes += i + 1
 
 				if len(line) == 0 {
 					continue
