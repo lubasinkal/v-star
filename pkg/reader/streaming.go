@@ -107,7 +107,7 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 	var totalPV float64
 	var totalCount int
 
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		wg.Add(1)
 		go func(j csvJob) {
 			defer wg.Done()

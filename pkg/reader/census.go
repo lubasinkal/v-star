@@ -116,16 +116,13 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 	results := make([]batchResult, numWorkers)
 	var wg sync.WaitGroup
 
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		start := headerOffset + int64(w)*chunkSize
 		end := start + chunkSize
 		hasOverlap := end < fileSize
 
 		if hasOverlap {
-			end = end + overlap
-			if end > fileSize {
-				end = fileSize
-			}
+			end = min(end+overlap, fileSize)
 		}
 
 		wg.Add(1)

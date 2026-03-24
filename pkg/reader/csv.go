@@ -73,7 +73,7 @@ func buildChunks(headerOffset, dataSize int64, numWorkers int) []csvJob {
 	fileSize := headerOffset + dataSize
 
 	jobs := make([]csvJob, numWorkers)
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		start := headerOffset + int64(w)*chunkSizeBytes
 		end := start + chunkSizeBytes
 		if w < numWorkers-1 {
@@ -141,7 +141,7 @@ func parallelCSVProcess[T any](f *os.File, opts CSVOptions, headerOffset, dataSi
 	var mu sync.Mutex
 	var firstErr error
 
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		wg.Add(1)
 		go func(j csvJob) {
 			defer wg.Done()
@@ -216,7 +216,7 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 	var mu sync.Mutex
 	var firstErr error
 
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		wg.Add(1)
 		go func(j csvJob) {
 			defer wg.Done()
@@ -292,7 +292,7 @@ func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) er
 	var mu sync.Mutex
 	var firstErr error
 
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		wg.Add(1)
 		go func(j csvJob) {
 			defer wg.Done()
@@ -366,7 +366,7 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 	var totalPV float64
 	var totalCount int
 
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		wg.Add(1)
 		go func(j csvJob) {
 			defer wg.Done()
