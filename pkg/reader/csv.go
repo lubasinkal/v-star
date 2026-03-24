@@ -105,10 +105,7 @@ func processChunk(f *os.File, j csvJob, headerOffset int64, lineHandler func(lin
 	}
 	buf = buf[:n]
 
-	originalEnd := j.limit
-	if originalEnd > len(buf) {
-		originalEnd = len(buf)
-	}
+	originalEnd := min(j.limit, len(buf))
 
 	offset := 0
 	if j.start > headerOffset && len(buf) > 0 && buf[0] != '\n' {
