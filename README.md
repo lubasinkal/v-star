@@ -19,7 +19,8 @@ v* = (1+j) * v
 Modern financial software is often bloated and slow. **v-star** is designed for:
 
 - **Zero Dependencies:** Uses only the Go Standard Library
-- **Extreme Speed:** 11M+ rows/sec CSV parsing, parallel processing
+- **Extreme Speed:** 28M+ rows/sec CSV parsing, parallel processing
+- **Low Memory:** Streaming chunked processing, no full DataFrame in memory
 - **Auditability:** Pure, readable math implementations
 - **Flexibility:** Generic CSV parsing + specialized actuarial models
 - **Open Source:** MIT Licensed, community-driven
@@ -29,9 +30,9 @@ Modern financial software is often bloated and slow. **v-star** is designed for:
 | Feature | Description | Performance |
 |---------|-------------|-------------|
 | **Generic CSV Parser** | Stream any CSV format | ~2.5M rows/sec |
-| **Parallel CSV Parser** | Multi-core CSV processing | ~11M rows/sec |
-| **Actuarial CSV Parser** | Direct CensusRecord parsing | ~11M rows/sec |
-| **Present Value** | Standard & v* discount factors | ~10M calcs/sec |
+| **Parallel CSV Parser** | Multi-core CSV processing | ~28M rows/sec |
+| **Actuarial CSV Parser** | Direct CensusRecord parsing | ~28M rows/sec |
+| **Present Value** | Standard & v* discount factors | ~28M calcs/sec |
 | **Annuities** | Whole life, term, deferred (immediate & due) | |
 | **Life Insurance NSP** | Whole life, term, endowment net single premium | |
 | **Reserves** | Net premium, gross premium, prospective, retrospective | |
@@ -145,15 +146,26 @@ totalPV, count := reader.StreamCSVWithPV("policies.csv", opts, converter.Present
 
 ## Performance Benchmarks
 
-Tested on: Intel Core i5-8250U @ 1.60GHz (8 cores), 10M row CSV (~288MB)
+Tested on 10M row CSV (~288MB), 8-core Intel, Windows 11.
+
+### Throughput
 
 | Operation | Throughput | Duration |
 |-----------|-----------|----------|
-| Generic CSV Streaming | ~2.5M rows/sec | 4.0s |
-| Parallel Generic CSV | ~11M rows/sec | 0.9s |
-| CensusRecord Streaming | ~11M rows/sec | 0.9s |
-| PV Calculation (full) | ~10M rows/sec | 1.0s |
+| CensusRecord Streaming + PV | 28.8M rows/sec | 347ms |
 | Monte Carlo (100k paths) | ~100k paths/sec | 1.0s |
+
+### v-star vs Polars (10M rows, PV calculation)
+
+| Metric | v-star (Go) | Polars 1.39 (Rust→Python) |
+|--------|------------|---------------------------|
+| Duration | 347ms | 535ms |
+| Throughput | 28.8M rows/sec | 18.7M rows/sec |
+| Peak RSS | 349 MB | ~500 MB |
+| After processing | 0.2 MB (GC'd) | ~426 MB (DataFrame alive) |
+| PV output | 1,332,144,325,593.69 | 1,332,144,325,593.69 |
+
+v-star is **~1.5x faster** with **~30% less memory** than Polars on this workload. Both produce identical results.
 
 ### Additional CLI Commands
 
