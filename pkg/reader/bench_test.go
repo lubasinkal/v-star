@@ -85,6 +85,25 @@ func BenchmarkStreamCSVParallel(b *testing.B) {
 	}
 }
 
+// BenchmarkStreamCSVRaw measures raw byte slice CSV reading throughput (zero-allocation).
+// Run with: go test ./pkg/reader -bench=BenchmarkStreamCSVRaw -benchmem
+func BenchmarkStreamCSVRaw(b *testing.B) {
+	filepath := "../../10M.csv"
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		b.Skip("10M.csv not found")
+	}
+
+	b.ResetTimer()
+	b.SetBytes(288 * 1024 * 1024)
+	for i := 0; i < b.N; i++ {
+		count := 0
+		StreamCSVRaw(filepath, CSVOptions{Header: true, Limit: 5000000}, func(fields [][]byte) {
+			count++
+		})
+		_ = count
+	}
+}
+
 // BenchmarkParseFields measures generic field splitting speed.
 func BenchmarkParseFields(b *testing.B) {
 	line := []byte("30,male,term,100000.50,20")
