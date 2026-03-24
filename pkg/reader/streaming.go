@@ -99,7 +99,6 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 	}
 
 	numWorkers := max(min(runtime.NumCPU(), 8), 1)
-	chunkSizeBytes := dataSize / int64(numWorkers)
 	jobs := buildChunks(headerOffset, dataSize, numWorkers)
 
 	var wg sync.WaitGroup
@@ -116,7 +115,7 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 			localCount := 0
 			limit := opts.Limit
 
-			processChunk(f, j, chunkSizeBytes, headerOffset, func(line []byte) {
+			processChunk(f, j, headerOffset, func(line []byte) {
 				if limit > 0 && localCount >= limit {
 					return
 				}
@@ -191,7 +190,6 @@ func streamSequentialChunked(f *os.File, opts StreamOptions, headerOffset int64,
 
 func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, delimiter byte, processFn ChunkProcessor, numWorkers int, dataSize int) (int, error) {
 	chunkSize := opts.ChunkSize
-	chunkSizeBytes := dataSize / numWorkers
 	jobs := buildChunks(headerOffset, int64(dataSize), numWorkers)
 
 	results := make([][]CensusRecord, numWorkers)
@@ -207,7 +205,7 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 
 			records := make([]CensusRecord, 0, chunkSize)
 
-			err := processChunk(f, j, int64(chunkSizeBytes), headerOffset, func(line []byte) {
+			err := processChunk(f, j, headerOffset, func(line []byte) {
 				if r, err := parseCensusFastBytes(line, delimiter); err == nil {
 					records = append(records, r)
 				} else if opts.OnParseError != nil {

@@ -3,6 +3,7 @@ package reader
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -30,6 +31,7 @@ type csvJob struct {
 	id    int
 	start int64
 	end   int64
+	limit int // max bytes to process from the buffer (excludes overlap)
 }
 
 // openCSV opens a file, detects the header, and returns file metadata.
@@ -67,6 +69,8 @@ func openCSV(filepath string, opts CSVOptions) (*os.File, int64, int64, byte, er
 }
 
 // buildChunks creates the parallel job chunks for a file.
+// Each chunk includes overlap for line boundary detection.
+// The limit field indicates how many bytes to process (excludes the overlap region).
 func buildChunks(headerOffset, dataSize int64, numWorkers int) []csvJob {
 	chunkSizeBytes := dataSize / int64(numWorkers)
 	overlap := int64(8192)
@@ -76,17 +80,23 @@ func buildChunks(headerOffset, dataSize int64, numWorkers int) []csvJob {
 	for w := range numWorkers {
 		start := headerOffset + int64(w)*chunkSizeBytes
 		end := start + chunkSizeBytes
+		limit := int(chunkSizeBytes)
 		if w < numWorkers-1 {
 			end = min(end+overlap, fileSize)
+		} else {
+			// Last chunk: extend to file end and process all remaining bytes
+			end = fileSize
+			limit = int(dataSize - int64(w)*chunkSizeBytes)
 		}
-		jobs[w] = csvJob{id: w, start: start, end: end}
+		jobs[w] = csvJob{id: w, start: start, end: end, limit: limit}
 	}
 	return jobs
 }
 
 // processChunk reads a byte range from the file and calls lineHandler for each line.
 // The offset handles skipping the partial first line for non-first chunks.
-func processChunk(f *os.File, j csvJob, chunkSizeBytes int64, headerOffset int64, lineHandler func(line []byte)) error {
+// Uses j.limit to determine the processing boundary (excludes overlap).
+func processChunk(f *os.File, j csvJob, headerOffset int64, lineHandler func(line []byte)) error {
 	bufSize := int(j.end - j.start)
 	buf := make([]byte, bufSize)
 	n, err := f.ReadAt(buf, j.start)
@@ -95,7 +105,10 @@ func processChunk(f *os.File, j csvJob, chunkSizeBytes int64, headerOffset int64
 	}
 	buf = buf[:n]
 
-	originalEnd := int(chunkSizeBytes)
+	originalEnd := j.limit
+	if originalEnd > len(buf) {
+		originalEnd = len(buf)
+	}
 
 	offset := 0
 	if j.start > headerOffset && len(buf) > 0 && buf[0] != '\n' {
@@ -116,70 +129,29 @@ func processChunk(f *os.File, j csvJob, chunkSizeBytes int64, headerOffset int64
 		if len(line) > 0 && line[len(line)-1] == '\r' {
 			line = line[:len(line)-1]
 		}
+
 		if len(line) == 0 {
 			continue
 		}
 
 		lineHandler(line)
 	}
-	return nil
-}
 
-// parallelCSVProcess runs the parallel file-chunking pattern.
-// collectFn is called once per goroutine (idx) and must return a slice of results for that chunk.
-// yieldFn is called sequentially after all goroutines finish, in order.
-func parallelCSVProcess[T any](f *os.File, opts CSVOptions, headerOffset, dataSize int64, delimiter byte,
-	collectFn func(idx int, processLine func(line []byte)),
-	yieldFn func(results []T),
-) error {
-	numWorkers := max(min(runtime.NumCPU(), 8), 1)
-	chunkSizeBytes := dataSize / int64(numWorkers)
-	jobs := buildChunks(headerOffset, dataSize, numWorkers)
-
-	batches := make([][]T, numWorkers)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var firstErr error
-
-	for w := range numWorkers {
-		wg.Add(1)
-		go func(j csvJob) {
-			defer wg.Done()
-
-			var batch []T
-			lineHandler := func(line []byte) {
-				collectFn(j.id, func(l []byte) {
-					// This is a no-op; the real collection happens in collectFn
-					_ = l
-				})
+	// Handle the edge case where a newline falls exactly at the chunk boundary.
+	// The main loop exits when processedBytes >= originalEnd, but if a complete
+	// line ends exactly at originalEnd, it should be processed.
+	if processedBytes == originalEnd && processedBytes < len(buf) {
+		if i := bytes.IndexByte(buf[processedBytes:], '\n'); i >= 0 {
+			line := buf[processedBytes : processedBytes+i]
+			if len(line) > 0 && line[len(line)-1] == '\r' {
+				line = line[:len(line)-1]
 			}
-			_ = lineHandler
-
-			err := processChunk(f, j, chunkSizeBytes, headerOffset, func(line []byte) {
-				collectFn(j.id, func(l []byte) {
-					_ = l
-				})
-			})
-			_ = err
-
-			// The actual collection is done by the caller via collectFn
-			// but we need a different pattern...
-			_ = batch
-			_ = &mu
-			_ = &firstErr
-			batches[j.id] = nil // placeholder
-		}(jobs[w])
+			if len(line) > 0 {
+				lineHandler(line)
+			}
+		}
 	}
 
-	wg.Wait()
-
-	if firstErr != nil {
-		return firstErr
-	}
-
-	for _, batch := range batches {
-		yieldFn(batch)
-	}
 	return nil
 }
 
@@ -224,7 +196,7 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 			estLines := max(int(chunkSizeBytes)/50, 1024)
 			batch := make([][]string, 0, estLines)
 
-			err := processChunk(f, j, chunkSizeBytes, headerOffset, func(line []byte) {
+			err := processChunk(f, j, headerOffset, func(line []byte) {
 				fields := parseFieldsFast(line, delimiter)
 				batch = append(batch, fields)
 			})
@@ -300,7 +272,7 @@ func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) er
 			estLines := max(int(chunkSizeBytes)/50, 1024)
 			batch := make([][][]byte, 0, estLines)
 
-			err := processChunk(f, j, chunkSizeBytes, headerOffset, func(line []byte) {
+			err := processChunk(f, j, headerOffset, func(line []byte) {
 				fields := parseFieldsRaw(line, delimiter)
 				batch = append(batch, fields)
 			})
@@ -358,7 +330,6 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 	}
 
 	numWorkers := max(min(runtime.NumCPU(), 8), 1)
-	chunkSizeBytes := dataSize / int64(numWorkers)
 	jobs := buildChunks(headerOffset, dataSize, numWorkers)
 
 	var wg sync.WaitGroup
@@ -375,7 +346,7 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 			localCount := 0
 			limit := opts.Limit
 
-			processChunk(f, j, chunkSizeBytes, headerOffset, func(line []byte) {
+			processChunk(f, j, headerOffset, func(line []byte) {
 				if limit > 0 && localCount >= limit {
 					return
 				}
@@ -391,6 +362,7 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 			mu.Lock()
 			totalPV += localPV
 			totalCount += localCount
+			fmt.Fprintf(os.Stderr, "CHUNK %d: count=%d\n", j.id, localCount)
 			mu.Unlock()
 		}(jobs[w])
 	}
