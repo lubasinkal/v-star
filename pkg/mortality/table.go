@@ -6,19 +6,17 @@ import (
 	"os"
 )
 
+// MortalityTable defines the interface for mortality data access.
+// Implementations provide mortality rates (qx), survival probabilities (px),
+// and the maximum age defined in the table.
 type MortalityTable interface {
 	Qx(age int) float64
 	Px(age int, term int) float64
 	MaxAge() int
-	Name() string
-	Lx(age int) float64
 }
 
-type SurvivalCalculator interface {
-	Px(age int, term int) float64
-	Ex(age int) float64
-}
-
+// Table implements MortalityTable using slices of mortality rates.
+// Uses radix 100000 for lx (survival count) calculations.
 type Table struct {
 	name   string
 	qx     []float64
@@ -26,6 +24,8 @@ type Table struct {
 	maxAge int
 }
 
+// NewTable constructs a Table from a slice of qx (probability of death) values.
+// Computes lx internally using radix 100000. Index 0 corresponds to age 0.
 func NewTable(name string, qx []float64) *Table {
 	maxAge := len(qx) - 1
 	lx := make([]float64, len(qx))
@@ -41,6 +41,8 @@ func NewTable(name string, qx []float64) *Table {
 	}
 }
 
+// Qx returns the probability of death between age x and x+1.
+// Returns 0 for out-of-range ages.
 func (t *Table) Qx(age int) float64 {
 	if age < 0 || age > t.maxAge {
 		return 0
@@ -48,6 +50,8 @@ func (t *Table) Qx(age int) float64 {
 	return t.qx[age]
 }
 
+// Px returns the cumulative survival probability over term years from age.
+// Returns 1 for term <= 0, and 0 when age + term exceeds maxAge.
 func (t *Table) Px(age int, term int) float64 {
 	if age < 0 || term <= 0 {
 		return 1
@@ -63,6 +67,8 @@ func (t *Table) Px(age int, term int) float64 {
 	return product
 }
 
+// Ex returns the curtate expectation of life at the given age.
+// This is the sum of Px(age, year) for year >= 1 until maxAge is reached.
 func (t *Table) Ex(age int) float64 {
 	if age < 0 || age > t.maxAge {
 		return 0
@@ -74,14 +80,17 @@ func (t *Table) Ex(age int) float64 {
 	return ex
 }
 
+// MaxAge returns the maximum age defined in the table.
 func (t *Table) MaxAge() int {
 	return t.maxAge
 }
 
+// Name returns the table name.
 func (t *Table) Name() string {
 	return t.name
 }
 
+// Lx returns the number of lives surviving to the given age from radix 100000.
 func (t *Table) Lx(age int) float64 {
 	if age < 0 || age > t.maxAge {
 		return 0
@@ -89,7 +98,9 @@ func (t *Table) Lx(age int) float64 {
 	return t.lx[age]
 }
 
-func LoadCSV(filepath string) (MortalityTable, error) {
+// LoadCSV loads a mortality table from a CSV file.
+// Supports columns named "qx" or "px" alongside an "age" column.
+func LoadCSV(filepath string) (*Table, error) {
 	return loadCSVToMemory(filepath)
 }
 

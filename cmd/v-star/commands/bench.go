@@ -85,7 +85,7 @@ func benchmarkValuation() {
 		}
 	}
 
-	converter := rates.RateConverter{EffectiveRate: 0.05}
+	converter := rates.NewRateConverter(0.05)
 
 	var memStatsBefore runtime.MemStats
 	runtime.ReadMemStats(&memStatsBefore)

@@ -85,7 +85,7 @@ func TestDiscount(t *testing.T) {
 	}
 }
 
-var _ DiscountFactor = RateConverter{}
+var _ DiscountFactor = (*RateConverter)(nil)
 
 // Benchmark tests for the "1 Billion Row Challenge" mindset
 func BenchmarkV(b *testing.B) {

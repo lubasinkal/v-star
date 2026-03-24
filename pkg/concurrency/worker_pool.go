@@ -11,13 +11,13 @@ import (
 // WorkerPool processes CensusRecords in parallel using goroutines.
 type WorkerPool struct {
 	workers   int
-	converter rates.RateConverter
+	converter *rates.RateConverter
 	wg        sync.WaitGroup
 }
 
 // NewWorkerPool creates a new worker pool with the specified number of workers.
 // If workers <= 0, defaults to runtime.NumCPU().
-func NewWorkerPool(workers int, converter rates.RateConverter) *WorkerPool {
+func NewWorkerPool(workers int, converter *rates.RateConverter) *WorkerPool {
 	if workers <= 0 {
 		workers = runtime.NumCPU()
 	}
@@ -87,7 +87,7 @@ func (wp *WorkerPool) processParallel(records []reader.CensusRecord) float64 {
 
 // ProcessBatch is a convenience function that creates a WorkerPool and processes records.
 // Workers <= 0 defaults to runtime.NumCPU().
-func ProcessBatch(records []reader.CensusRecord, converter rates.RateConverter, workers int) float64 {
+func ProcessBatch(records []reader.CensusRecord, converter *rates.RateConverter, workers int) float64 {
 	wp := NewWorkerPool(workers, converter)
 	return wp.ProcessBatch(records)
 }

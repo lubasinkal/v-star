@@ -11,16 +11,19 @@ import (
 	"sync/atomic"
 )
 
+// ChunkProcessor is a callback that processes a chunk of CensusRecords.
+// Return a non-nil error to abort processing.
 type ChunkProcessor func(chunk []CensusRecord) error
 
+// StreamOptions configures chunked parallel streaming behavior.
 type StreamOptions struct {
-	Header    bool
-	Limit     int
-	Delimiter byte
+	CSVOptions
 	ChunkSize int
 	Workers   int
 }
 
+// StreamCensusChunked reads a census CSV file in parallel chunks, calling processFn
+// for each chunk. Returns the total record count and any error.
 func StreamCensusChunked(filepath string, opts StreamOptions, processFn ChunkProcessor) (int, error) {
 	delimiter := opts.Delimiter
 	if delimiter == 0 {
@@ -76,6 +79,8 @@ func StreamCensusChunked(filepath string, opts StreamOptions, processFn ChunkPro
 	return streamParallelChunked(f, opts, headerOffset, delimiter, processFn, numWorkers, int(dataSize))
 }
 
+// StreamCensusWithPV reads a census CSV, calculates PV for each record using pvFn,
+// and returns the total PV and record count. Uses parallel processing for large files.
 func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssured float64, term int) float64) (float64, int) {
 	delimiter := opts.Delimiter
 	if delimiter == 0 {
@@ -297,6 +302,7 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 
 	results := make([][]CensusRecord, numWorkers)
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 	var totalCount int32
 	var firstErr error
 
@@ -354,8 +360,12 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 		go func(idx int) {
 			defer wg.Done()
 			records, err := processJob(jobs[idx])
-			if err != nil && firstErr == nil {
-				firstErr = err
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
 				return
 			}
 			results[idx] = records

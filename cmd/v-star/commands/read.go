@@ -79,7 +79,7 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 		os.Exit(1)
 	}
 
-	calc := annuities.New(&rates.RateConverter{EffectiveRate: interest}, mort)
+	calc := annuities.NewAnnuityCalculator(&rates.RateConverter{EffectiveRate: interest}, mort)
 
 	type AnnuityResult struct {
 		Age          int
@@ -116,8 +116,10 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 	}
 
 	opts := reader.StreamOptions{
-		Header:    header,
-		Limit:     limit,
+		CSVOptions: reader.CSVOptions{
+			Header: header,
+			Limit:  limit,
+		},
 		ChunkSize: chunkSize,
 		Workers:   runtime.NumCPU(),
 	}
@@ -195,8 +197,10 @@ func readWithoutMortality(filepath string, interest float64, header bool, limit 
 	converter := rates.NewRateConverter(interest)
 
 	opts := reader.StreamOptions{
-		Header: header,
-		Limit:  limit,
+		CSVOptions: reader.CSVOptions{
+			Header: header,
+			Limit:  limit,
+		},
 	}
 
 	totalPV, count := reader.StreamCensusWithPV(filepath, opts, converter.PresentValue)
@@ -214,5 +218,3 @@ func readWithoutMortality(filepath string, interest float64, header bool, limit 
 		fmt.Printf("Total Present Value: %.2f\n", totalPV)
 	}
 }
-
-var converter rates.RateConverter

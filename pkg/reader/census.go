@@ -13,6 +13,7 @@ import (
 )
 
 // ColumnMap maps CSV column names to their indices.
+// ColumnMap maps CSV column names to their positional indices.
 type ColumnMap map[string]int
 
 // StreamCensus reads a census CSV file and yields CensusRecords.
@@ -300,6 +301,8 @@ func parseFastFloat(b []byte) float64 {
 }
 
 // ParseCensusRow converts generic string fields to a CensusRecord using column mapping.
+// ParseCensusRow converts a slice of string fields to a CensusRecord
+// using the provided column mapping.
 func ParseCensusRow(fields []string, colMap ColumnMap) (CensusRecord, error) {
 	if len(fields) == 0 {
 		return CensusRecord{}, errors.New("empty row")

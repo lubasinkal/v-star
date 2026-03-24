@@ -11,12 +11,6 @@ import (
 	"unsafe"
 )
 
-var fieldSlicePool = sync.Pool{
-	New: func() any {
-		return make([]string, 0, 32)
-	},
-}
-
 // CSVOptions configures CSV reading behavior.
 type CSVOptions struct {
 	Header    bool // First row contains column names
@@ -94,11 +88,13 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 		jobs[w] = job{id: w, start: start, end: end}
 	}
 
+	type batchResult struct {
+		rows [][]string
+	}
+	results := make([]batchResult, numWorkers)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var firstErr error
-	processedCount := 0
-	limit := opts.Limit
 
 	for w := 0; w < numWorkers; w++ {
 		wg.Add(1)
@@ -128,15 +124,11 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 				}
 			}
 
+			estLines := max(originalEnd/50, 1024)
+			batch := make([][]string, 0, estLines)
+
 			processedBytes := offset
 			for processedBytes < originalEnd && processedBytes < len(buf) {
-				mu.Lock()
-				if limit > 0 && processedCount >= limit {
-					mu.Unlock()
-					return
-				}
-				mu.Unlock()
-
 				i := bytes.IndexByte(buf[processedBytes:], '\n')
 				var line []byte
 				if i < 0 {
@@ -154,12 +146,9 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 				}
 
 				fields := parseFieldsFast(line, delimiter)
-				fn(fields)
-
-				mu.Lock()
-				processedCount++
-				mu.Unlock()
+				batch = append(batch, fields)
 			}
+			results[j.id].rows = batch
 		}(jobs[w])
 	}
 
@@ -167,6 +156,19 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 
 	if firstErr != nil {
 		return firstErr
+	}
+
+	// Yield results in order
+	count := 0
+	limit := opts.Limit
+	for _, batch := range results {
+		for _, fields := range batch.rows {
+			if limit > 0 && count >= limit {
+				return nil
+			}
+			fn(fields)
+			count++
+		}
 	}
 	return nil
 }
@@ -240,11 +242,13 @@ func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) er
 		jobs[w] = job{id: w, start: start, end: end}
 	}
 
+	type batchResult struct {
+		rows [][][]byte
+	}
+	results := make([]batchResult, numWorkers)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var firstErr error
-	processedCount := 0
-	limit := opts.Limit
 
 	for w := 0; w < numWorkers; w++ {
 		wg.Add(1)
@@ -274,15 +278,11 @@ func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) er
 				}
 			}
 
+			estLines := max(originalEnd/50, 1024)
+			batch := make([][][]byte, 0, estLines)
+
 			processedBytes := offset
 			for processedBytes < originalEnd && processedBytes < len(buf) {
-				mu.Lock()
-				if limit > 0 && processedCount >= limit {
-					mu.Unlock()
-					return
-				}
-				mu.Unlock()
-
 				i := bytes.IndexByte(buf[processedBytes:], '\n')
 				var line []byte
 				if i < 0 {
@@ -300,12 +300,9 @@ func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) er
 				}
 
 				fields := parseFieldsRaw(line, delimiter)
-				fn(fields)
-
-				mu.Lock()
-				processedCount++
-				mu.Unlock()
+				batch = append(batch, fields)
 			}
+			results[j.id].rows = batch
 		}(jobs[w])
 	}
 
@@ -313,6 +310,19 @@ func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) er
 
 	if firstErr != nil {
 		return firstErr
+	}
+
+	// Yield results in order
+	count := 0
+	limit := opts.Limit
+	for _, batch := range results {
+		for _, fields := range batch.rows {
+			if limit > 0 && count >= limit {
+				return nil
+			}
+			fn(fields)
+			count++
+		}
 	}
 	return nil
 }

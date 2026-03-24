@@ -286,17 +286,9 @@ type MortalityTable interface {
     Qx(age int) float64       // Probability of death within one year
     Px(age int, term int) float64 // Cumulative survival probability
     MaxAge() int              // Maximum age in table
-    Name() string             // Table name
-    Lx(age int) float64       // Lives surviving to age (radix 100000)
 }
 
-// SurvivalCalculator provides survival and life expectancy calculations.
-type SurvivalCalculator interface {
-    Px(age int, term int) float64
-    Ex(age int) float64 // Curtate expectation of life
-}
-
-// Table implements MortalityTable and SurvivalCalculator.
+// Table implements MortalityTable. Also has Name() and Lx() methods.
 type Table struct { /* unexported fields */ }
 ```
 
@@ -325,9 +317,9 @@ err := mortality.StreamCSV("mortality.csv", func(age int, qx float64) {
 | `Qx(age int) float64` | Probability of death between age x and x+1 |
 | `Px(age int, term int) float64` | Cumulative survival: Px(age, term) = product of (1 - Qx) |
 | `Ex(age int) float64` | Curtate expectation of life: sum of Px(age, t) for t >= 1 |
-| `Lx(age int) float64` | Number of lives surviving to age from radix 100000 |
 | `MaxAge() int` | Maximum age defined in the table |
-| `Name() string` | Table name |
+| `Name() string` | Table name (on concrete *Table type) |
+| `Lx(age int) float64` | Number of lives surviving to age from radix 100000 (on concrete *Table type) |
 
 ```go
 table, _ := mortality.LoadCSV("mortality.csv")
@@ -347,12 +339,6 @@ Whole life, term, and deferred annuity calculations.
 #### Types
 
 ```go
-// DeferredAnnuityCalculator is the interface for deferred annuity computations.
-type DeferredAnnuityCalculator interface {
-    DeferredWholeLife(age int, deferment int, amount float64) float64
-    DeferredTerm(age int, deferment int, term int, amount float64) float64
-}
-
 // AnnuityCalculator computes annuity values using a discount factor and mortality table.
 type AnnuityCalculator struct { /* unexported fields */ }
 ```
@@ -360,10 +346,10 @@ type AnnuityCalculator struct { /* unexported fields */ }
 #### Functions
 
 ```go
-// New creates an AnnuityCalculator from a DiscountFactor and MortalityTable.
+// NewAnnuityCalculator creates an AnnuityCalculator from a DiscountFactor and MortalityTable.
 converter := rates.NewRateConverter(0.05)
 table, _ := mortality.LoadCSV("mortality.csv")
-ann := annuities.New(converter, table)
+ann := annuities.NewAnnuityCalculator(converter, table)
 
 // ApproxWholeLifeImmediate computes an approximate whole life immediate
 // annuity using a direct interest rate (no RateConverter needed).
@@ -420,8 +406,8 @@ type PolicySpec struct {
 |-----------|-------------|
 | `NetPremiumReserve(policy PolicySpec, discount DiscountFactor, mort MortalityTable) float64` | Net premium reserve using prospective method |
 | `GrossPremiumReserve(policy PolicySpec, expenses float64, discount DiscountFactor, mort MortalityTable) float64` | Gross premium reserve (NPR + expense reserve) |
-| `ProspectiveReserve(age int, term int, sa float64, prem float64, discount DiscountFactor, mort MortalityTable) float64` | Future benefits minus future premiums |
-| `RetrospectiveReserve(age int, term int, sa float64, prem float64, discount DiscountFactor, mort MortalityTable) float64` | Accumulated premiums minus past claims |
+| `ProspectiveReserve(policy PolicySpec, discount DiscountFactor, mort MortalityTable) float64` | Future benefits minus future premiums |
+| `RetrospectiveReserve(policy PolicySpec, discount DiscountFactor, mort MortalityTable) float64` | Accumulated premiums minus past claims |
 
 ```go
 converter := rates.NewRateConverter(0.05)
@@ -437,8 +423,8 @@ policy := reserves.PolicySpec{
 npr := reserves.NetPremiumReserve(policy, converter, table)
 gpr := reserves.GrossPremiumReserve(policy, 50, converter, table)
 
-prosp := reserves.ProspectiveReserve(30, 20, 100000, 500, converter, table)
-retro := reserves.RetrospectiveReserve(30, 20, 100000, 500, converter, table)
+prosp := reserves.ProspectiveReserve(policy, converter, table)
+retro := reserves.RetrospectiveReserve(policy, converter, table)
 ```
 
 ---
@@ -516,11 +502,9 @@ type CSVOptions struct {
 
 // StreamOptions configures chunked parallel streaming.
 type StreamOptions struct {
-    Header    bool
-    Limit     int
-    Delimiter byte
-    ChunkSize int // Records per chunk (default: auto)
-    Workers   int // Goroutine count (default: NumCPU)
+    CSVOptions            // Embeds Header, Limit, Delimiter
+    ChunkSize int         // Records per chunk (default: auto)
+    Workers   int         // Goroutine count (default: NumCPU)
 }
 
 // ColumnMap maps CSV column names to their indices.
@@ -649,7 +633,7 @@ type WorkerPool struct { /* unexported fields */ }
 ```go
 // NewWorkerPool creates a pool with the given worker count.
 // If workers <= 0, defaults to runtime.NumCPU().
-wp := concurrency.NewWorkerPool(8, *converter)
+wp := concurrency.NewWorkerPool(8, converter)
 
 // ProcessBatch is a convenience function that creates a pool and processes records.
 // Returns the total present value across all records.

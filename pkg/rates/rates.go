@@ -2,15 +2,21 @@ package rates
 
 import "math"
 
+// DiscountFactor is the interface for discount factor calculations.
+// Implementations must return the discount factor v^term for a given term.
 type DiscountFactor interface {
 	Discount(term int) float64
 }
 
+// RateConverter performs interest rate conversions and present value calculations.
+// It pre-computes a discount table for terms 0 through 100 for fast lookups.
 type RateConverter struct {
 	EffectiveRate float64
 	discountTable []float64
 }
 
+// NewRateConverter creates a RateConverter for the given effective annual rate.
+// It pre-computes discount factors v^t for t in [0, 100] where v = 1/(1+i).
 func NewRateConverter(effectiveRate float64) *RateConverter {
 	v := 1 / (1 + effectiveRate)
 	table := make([]float64, 101)
@@ -24,7 +30,9 @@ func NewRateConverter(effectiveRate float64) *RateConverter {
 	}
 }
 
-func (r RateConverter) Discount(term int) float64 {
+// Discount returns the discount factor v^term.
+// Uses a pre-computed table for terms 0-100, falls back to loop for larger terms.
+func (r *RateConverter) Discount(term int) float64 {
 	if term <= 0 {
 		return 1
 	}
@@ -39,15 +47,19 @@ func (r RateConverter) Discount(term int) float64 {
 	return result
 }
 
-func (r RateConverter) V() float64 {
+// V returns the one-period discount factor v = 1/(1+i).
+func (r *RateConverter) V() float64 {
 	return 1 / (1 + r.EffectiveRate)
 }
 
-func (r RateConverter) VStar(j float64) float64 {
+// VStar returns the v-star factor v* = (1+j) * v,
+// used when premiums compound at rate j while being discounted at rate i.
+func (r *RateConverter) VStar(j float64) float64 {
 	return (1 + j) * r.V()
 }
 
-func (r RateConverter) PresentValue(sumAssured float64, term int) float64 {
+// PresentValue returns sumAssured * v^term.
+func (r *RateConverter) PresentValue(sumAssured float64, term int) float64 {
 	if term <= 0 {
 		return sumAssured
 	}
@@ -62,7 +74,8 @@ func (r RateConverter) PresentValue(sumAssured float64, term int) float64 {
 	return result
 }
 
-func (r RateConverter) PresentValueStar(sumAssured float64, term int, j float64) float64 {
+// PresentValueStar returns sumAssured * (v*)^term using the v-star discount factor.
+func (r *RateConverter) PresentValueStar(sumAssured float64, term int, j float64) float64 {
 	if term <= 0 {
 		return sumAssured
 	}
@@ -70,6 +83,8 @@ func (r RateConverter) PresentValueStar(sumAssured float64, term int, j float64)
 	return sumAssured * math.Pow(vStar, float64(term))
 }
 
+// NominalToEffective converts a nominal rate compounded m times per period
+// to an effective annual rate: i = (1 + im/m)^m - 1.
 func NominalToEffective(im float64, m int) float64 {
 	return math.Pow(1+(im/float64(m)), float64(m)) - 1
 }
