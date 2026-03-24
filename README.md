@@ -32,7 +32,11 @@ Modern financial software is often bloated and slow. **v-star** is designed for:
 | **Parallel CSV Parser** | Multi-core CSV processing | ~11M rows/sec |
 | **Actuarial CSV Parser** | Direct CensusRecord parsing | ~11M rows/sec |
 | **Present Value** | Standard & v* discount factors | ~10M calcs/sec |
-| **Monte Carlo** | GBM interest rate paths | ~100k paths/sec |
+| **Annuities** | Whole life, term, deferred (immediate & due) | |
+| **Life Insurance NSP** | Whole life, term, endowment net single premium | |
+| **Reserves** | Net premium, gross premium, prospective, retrospective | |
+| **Rate Conversions** | Nominal↔effective, force of interest, duration/convexity | |
+| **Monte Carlo** | GBM interest rate paths with percentiles | ~100k paths/sec |
 
 ## Quick Start
 
@@ -56,11 +60,19 @@ import (
 func main() {
     // Create rate converter
     converter := rates.NewRateConverter(0.05)
-    
+
     // Calculate present value
     pv := converter.PresentValue(100000, 20)
     fmt.Printf("PV: %.2f\n", pv)
-    
+
+    // Force of interest and rate conversions
+    delta := rates.ForceOfInterest(0.05)
+    fmt.Printf("Force of interest: %.6f\n", delta)
+
+    // Annuity-certain
+    a := rates.AnnuityCertainImmediate(0.05, 20)
+    fmt.Printf("Annuity-certain: %.2f\n", a)
+
     // Stream CSV with parallel processing
     opts := reader.CSVOptions{Header: true}
     totalPV, count := reader.StreamCSVWithPV("policies.csv", opts, converter.PresentValue)
@@ -74,6 +86,9 @@ func main() {
 # Build
 go build -o v-star ./cmd/v-star
 
+# Show version
+./v-star --version
+
 # Calculate discount factors
 ./v-star -i 0.05 -j 0.02
 
@@ -83,7 +98,7 @@ go build -o v-star ./cmd/v-star
 # Export as JSON
 ./v-star read policies.csv --output=json
 
-# Monte Carlo simulation
+# Monte Carlo simulation with percentiles
 ./v-star montecarlo --paths=100000 --steps=10 --drift=0.02 --volatility=0.15
 ```
 
@@ -158,6 +173,7 @@ Tested on: Intel Core i5-8250U @ 1.60GHz (8 cores), 10M row CSV (~288MB)
 |------|------|---------|-------------|
 | `-i` | float64 | `0.05` | Effective annual interest rate |
 | `-j` | float64 | `0.02` | Compounding growth rate for v* |
+| `--version` | bool | `false` | Show version number |
 
 **`read` subcommand:**
 
@@ -247,6 +263,27 @@ converter := rates.NewRateConverter(0.05)
 // to an effective annual rate.
 // Formula: i = (1 + im/m)^m - 1
 effective := rates.NominalToEffective(0.048, 12) // 4.8% nominal, monthly
+
+// EffectiveToNominal converts effective to nominal rate
+nominal := rates.EffectiveToNominal(0.05, 12)
+
+// Force of interest: delta = ln(1+i)
+delta := rates.ForceOfInterest(0.05)
+
+// Interest from force: i = e^delta - 1
+i := rates.InterestFromForce(delta)
+
+// Annuity-certain: a_angle_n = (1 - v^n) / i
+a := rates.AnnuityCertainImmediate(0.05, 20)
+
+// Annuity-certain-due: adbl_angle_n = (1 - v^n) / d
+adue := rates.AnnuityCertainDue(0.05, 20)
+
+// Duration and convexity for a cash flow stream
+cashFlows := []float64{100, 100, 100, 100, 1100} // bond coupons + principal
+macDur := rates.MacaulayDuration(0.05, cashFlows)
+modDur := rates.ModifiedDuration(0.05, cashFlows)
+conv := rates.Convexity(0.05, cashFlows)
 ```
 
 #### Methods
@@ -366,11 +403,14 @@ value := annuities.ApproxWholeLifeImmediate(65, 30, 1000, 0.05, table)
 | `TermDue(age int, term int, amount float64) float64` | Term annuity-due over specified years |
 | `DeferredWholeLife(age int, deferment int, amount float64) float64` | Deferred whole life annuity; payments start after deferment years |
 | `DeferredTerm(age int, deferment int, term int, amount float64) float64` | Deferred term annuity |
+| `WholeLifeNSP(age int, sumAssured float64) float64` | Net single premium for whole life insurance (A_x) |
+| `TermNSP(age int, term int, sumAssured float64) float64` | Net single premium for term insurance (A^1_{x:n}) |
+| `EndowmentNSP(age int, term int, sumAssured float64) float64` | Net single premium for endowment (A_{x:n}) |
 
 ```go
 converter := rates.NewRateConverter(0.05)
 table, _ := mortality.LoadCSV("mortality.csv")
-ann := annuities.New(converter, table)
+ann := annuities.NewAnnuityCalculator(converter, table)
 
 // Whole life annuity of 1000/year starting at age 65
 wl := ann.WholeLifeImmediate(65, 1000)
@@ -380,6 +420,11 @@ term := ann.TermDue(40, 20, 1000)
 
 // Deferred whole life: defer 10 years, then pay 1000/year
 deferred := ann.DeferredWholeLife(50, 10, 1000)
+
+// Life insurance net single premiums
+ax := ann.WholeLifeNSP(30, 100000)       // Whole life: A_30
+aterm := ann.TermNSP(30, 20, 100000)     // 20-year term: A^1_{30:20}
+aend := ann.EndowmentNSP(30, 20, 100000) // 20-year endowment: A_{30:20}
 ```
 
 ---
@@ -495,9 +540,10 @@ type CensusRecord struct {
 
 // CSVOptions configures CSV reading behavior.
 type CSVOptions struct {
-    Header    bool // First row contains column names
-    Limit     int  // Max rows to read (0 = unlimited)
-    Delimiter byte // Column delimiter (default ',')
+    Header       bool                         // First row contains column names
+    Limit        int                          // Max rows to read (0 = unlimited)
+    Delimiter    byte                         // Column delimiter (default ',')
+    OnParseError func(lineNum int, err error)  // Optional callback for parse errors (nil = skip)
 }
 
 // StreamOptions configures chunked parallel streaming.
@@ -534,6 +580,14 @@ reader.StreamCSV("data.csv", opts, func(fields []string) {
     fmt.Println(fields)
 })
 
+// Streaming with parse error reporting
+opts = reader.CSVOptions{
+    Header: true,
+    OnParseError: func(lineNum int, err error) {
+        fmt.Printf("Line %d: %v\n", lineNum, err)
+    },
+}
+
 // Zero-allocation streaming
 reader.StreamCSVRaw("data.csv", opts, func(fields [][]byte) {
     // process raw bytes without allocation
@@ -545,7 +599,11 @@ reader.StreamCensus("policies.csv", opts, func(rec reader.CensusRecord) {
 })
 
 // Chunked parallel processing
-sopts := reader.StreamOptions{Header: true, ChunkSize: 10000, Workers: 8}
+sopts := reader.StreamOptions{
+    CSVOptions: reader.CSVOptions{Header: true},
+    ChunkSize:  10000,
+    Workers:    8,
+}
 count, err := reader.StreamCensusChunked("policies.csv", sopts, func(chunk []reader.CensusRecord) error {
     // process 10000 records per chunk, in parallel
     return nil
