@@ -140,13 +140,15 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 		}
 		buf = buf[:n]
 
-		if j.start > headerOffset {
-			i := bytes.IndexByte(buf, '\n')
-			if i >= 0 {
-				buf = buf[i+1:]
+		if j.start > headerOffset && len(buf) > 0 {
+			// Only skip if previous chunk ended mid-line (byte before start is not \n)
+			if buf[0] != '\n' {
+				i := bytes.IndexByte(buf, '\n')
+				if i >= 0 {
+					buf = buf[i+1:]
+				}
 			}
 		}
-
 		if j.end < fileSize {
 			lastNL := bytes.LastIndexByte(buf, '\n')
 			if lastNL >= 0 {
