@@ -78,13 +78,7 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 		return nil
 	}
 
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 8 {
-		numWorkers = 8
-	}
-	if numWorkers < 1 {
-		numWorkers = 1
-	}
+	numWorkers := max(min(runtime.NumCPU(), 8), 1)
 
 	// For small files, use sequential scanner
 	if dataSize < 10*1024*1024 || numWorkers == 1 {
@@ -158,10 +152,7 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 			}
 
 			// Pre-allocate batch based on estimated line count (~45 bytes/line)
-			estLines := len(buf) / 45
-			if estLines < 1024 {
-				estLines = 1024
-			}
+			estLines := max(len(buf)/45, 1024)
 			batch := make([]CensusRecord, 0, estLines)
 
 			for len(buf) > 0 {
@@ -236,7 +227,7 @@ func parseCensusFastBytes(line []byte, delimiter byte) (CensusRecord, error) {
 
 	// Find all 4 delimiter positions in one pass
 	c1, c2, c3, c4 := -1, -1, -1, -1
-	for i := 0; i < len(line); i++ {
+	for i := range line {
 		if line[i] == delimiter {
 			switch {
 			case c1 < 0:
@@ -284,7 +275,7 @@ func parseCensusFastBytes(line []byte, delimiter byte) (CensusRecord, error) {
 // parseFastInt parses an integer from a byte slice without allocation.
 func parseFastInt(b []byte) int {
 	n := 0
-	for i := 0; i < len(b); i++ {
+	for i := range b {
 		c := b[i]
 		if c >= '0' && c <= '9' {
 			n = n*10 + int(c-'0')
@@ -298,7 +289,7 @@ func parseFastFloat(b []byte) float64 {
 	val := 0.0
 	divisor := 1
 	inDecimal := false
-	for i := 0; i < len(b); i++ {
+	for i := range b {
 		c := b[i]
 		if c == '.' {
 			inDecimal = true

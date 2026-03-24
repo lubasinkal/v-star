@@ -62,7 +62,7 @@ func (rg *RateGenerator) GeneratePath(steps int, dt float64) RatePath {
 // GeneratePaths generates multiple interest rate paths.
 func (rg *RateGenerator) GeneratePaths(numPaths, steps int, dt float64) []RatePath {
 	paths := make([]RatePath, numPaths)
-	for i := 0; i < numPaths; i++ {
+	for i := range numPaths {
 		paths[i] = rg.GeneratePath(steps, dt)
 	}
 	return paths

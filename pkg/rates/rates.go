@@ -33,7 +33,7 @@ func (r RateConverter) Discount(term int) float64 {
 	}
 	v := r.V()
 	result := 1.0
-	for i := 0; i < term; i++ {
+	for range term {
 		result *= v
 	}
 	return result
@@ -56,7 +56,7 @@ func (r RateConverter) PresentValue(sumAssured float64, term int) float64 {
 	}
 	v := r.V()
 	result := sumAssured
-	for i := 0; i < term; i++ {
+	for range term {
 		result *= v
 	}
 	return result

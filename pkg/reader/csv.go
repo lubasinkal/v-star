@@ -6,12 +6,13 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"slices"
 	"sync"
 	"unsafe"
 )
 
 var fieldSlicePool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return make([]string, 0, 32)
 	},
 }
@@ -99,13 +100,7 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 		return 0, 0
 	}
 
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 8 {
-		numWorkers = 8
-	}
-	if numWorkers < 1 {
-		numWorkers = 1
-	}
+	numWorkers := max(min(runtime.NumCPU(), 8), 1)
 
 	chunkSize := dataSize / int64(numWorkers)
 	type job struct {
@@ -229,13 +224,7 @@ func streamSequential(f *os.File, opts CSVOptions, delimiter byte, fn func([]str
 // The caller must copy field values if they need to retain them beyond the callback.
 func parseFields(line []byte, delimiter byte) []string {
 	// Fast path: check for quotes in a single scan
-	hasQuotes := false
-	for i := 0; i < len(line); i++ {
-		if line[i] == '"' {
-			hasQuotes = true
-			break
-		}
-	}
+	hasQuotes := slices.Contains(line, '"')
 
 	if !hasQuotes {
 		return parseFieldsFast(line, delimiter)
@@ -249,7 +238,7 @@ func parseFields(line []byte, delimiter byte) []string {
 func parseFieldsFast(line []byte, delimiter byte) []string {
 	// Count fields in one pass
 	count := 0
-	for i := 0; i < len(line); i++ {
+	for i := range line {
 		if line[i] == delimiter {
 			count++
 		}
@@ -260,7 +249,7 @@ func parseFieldsFast(line []byte, delimiter byte) []string {
 	start := 0
 	idx := 0
 
-	for i := 0; i < len(line); i++ {
+	for i := range line {
 		if line[i] == delimiter {
 			fields[idx] = unsafe.String(unsafe.SliceData(line[start:i]), len(line[start:i]))
 			idx++
@@ -278,7 +267,7 @@ func parseFieldsQuoted(line []byte, delimiter byte) []string {
 	// Count fields (respecting quoted delimiters)
 	count := 0
 	inQuotes := false
-	for i := 0; i < len(line); i++ {
+	for i := range line {
 		if line[i] == '"' {
 			inQuotes = !inQuotes
 		} else if line[i] == delimiter && !inQuotes {
@@ -291,7 +280,7 @@ func parseFieldsQuoted(line []byte, delimiter byte) []string {
 	idx := 0
 	inQuotes = false
 
-	for i := 0; i < len(line); i++ {
+	for i := range line {
 		c := line[i]
 		if c == '"' {
 			inQuotes = !inQuotes

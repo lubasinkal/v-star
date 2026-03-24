@@ -108,10 +108,7 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 		return 0, 0
 	}
 
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 8 {
-		numWorkers = 8
-	}
+	numWorkers := min(runtime.NumCPU(), 8)
 
 	chunkSizeBytes := dataSize / int64(numWorkers)
 	type job struct {
@@ -120,7 +117,7 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 	}
 
 	jobs := make([]job, numWorkers)
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		start := headerOffset + int64(w)*chunkSizeBytes
 		end := start + chunkSizeBytes
 		if w == numWorkers-1 {
@@ -195,7 +192,7 @@ func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssure
 		countMu.Unlock()
 	}
 
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		wg.Add(1)
 		go func(j job) {
 			defer wg.Done()
@@ -267,7 +264,7 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 	}
 
 	jobs := make([]job, numWorkers)
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		start := headerOffset + int64(w)*int64(chunkSizeBytes)
 		end := start + int64(chunkSizeBytes)
 		if w == numWorkers-1 {
@@ -341,7 +338,7 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 		return records, nil
 	}
 
-	for w := 0; w < numWorkers; w++ {
+	for w := range numWorkers {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()

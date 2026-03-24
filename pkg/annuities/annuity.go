@@ -69,7 +69,7 @@ func (a *AnnuityCalculator) TermDue(age int, term int, amount float64) float64 {
 		return 0
 	}
 	sum := 0.0
-	for t := 0; t < term; t++ {
+	for t := range term {
 		probSurvive := a.mort.Px(age, t)
 		discount := a.discount.Discount(t)
 		sum += probSurvive * discount

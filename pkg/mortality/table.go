@@ -140,7 +140,7 @@ func loadCSVToMemory(filepath string) (*Table, error) {
 			px := parseFloat(fields[pxIdx])
 			if age > 0 && age < len(qx) {
 				prevPx := 1.0
-				for a := 0; a < age; a++ {
+				for a := range age {
 					prevPx *= (1 - qx[a])
 				}
 				if prevPx > 0 {
@@ -325,7 +325,7 @@ func splitCSV(line []byte) []string {
 	var fields []string
 	start := 0
 	inQuotes := false
-	for i := 0; i < len(line); i++ {
+	for i := range line {
 		c := line[i]
 		if c == '"' {
 			inQuotes = !inQuotes

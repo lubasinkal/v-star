@@ -57,10 +57,7 @@ func (wp *WorkerPool) processParallel(records []reader.CensusRecord) float64 {
 
 	for w := 0; w < wp.workers; w++ {
 		start := w * chunkSize
-		end := start + chunkSize
-		if end > len(records) {
-			end = len(records)
-		}
+		end := min(start+chunkSize, len(records))
 		if start >= len(records) {
 			break
 		}

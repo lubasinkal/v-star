@@ -51,7 +51,7 @@ func TestDeterministicSeed(t *testing.T) {
 	rg2 := NewRateGeneratorWithSeed(0.05, 0.02, 0.15, seed)
 	paths2 := rg2.GeneratePaths(numPaths, steps, 1.0)
 
-	for i := 0; i < numPaths; i++ {
+	for i := range numPaths {
 		for j := 0; j <= steps; j++ {
 			if paths1[i][j] != paths2[i][j] {
 				t.Errorf("Path %d step %d: got %f, want %f (non-deterministic with same seed)",

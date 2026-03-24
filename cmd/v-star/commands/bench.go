@@ -75,7 +75,7 @@ func benchmarkCSV() {
 
 func benchmarkValuation() {
 	records := make([]reader.CensusRecord, 1000000)
-	for i := 0; i < 1000000; i++ {
+	for i := range 1000000 {
 		records[i] = reader.CensusRecord{
 			Age:        30 + i%50,
 			Sex:        "male",
