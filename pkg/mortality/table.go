@@ -372,40 +372,71 @@ func toLower(s string) string {
 }
 
 func parseInt(s string) int {
+	if len(s) == 0 {
+		return 0
+	}
 	n := 0
-	for i := 0; i < len(s); i++ {
+	negative := false
+	start := 0
+	if s[0] == '-' {
+		negative = true
+		start = 1
+	}
+	for i := start; i < len(s); i++ {
 		c := s[i]
-		if c >= '0' && c <= '9' {
-			n = n*10 + int(c-'0')
+		if c < '0' || c > '9' {
+			return 0
 		}
+		n = n*10 + int(c-'0')
+	}
+	if negative {
+		return -n
 	}
 	return n
 }
 
 func parseFloat(s string) float64 {
+	if len(s) == 0 {
+		return 0
+	}
 	val := 0.0
 	divisor := 1
 	inDecimal := false
-	hasValue := false
-	for i := 0; i < len(s); i++ {
+	hasDigit := false
+	negative := false
+	start := 0
+
+	if s[0] == '-' {
+		negative = true
+		start = 1
+	}
+
+	for i := start; i < len(s); i++ {
 		c := s[i]
 		if c == '.' {
+			if inDecimal {
+				return 0
+			}
 			inDecimal = true
 			continue
 		}
-		if c >= '0' && c <= '9' {
-			val = val*10 + float64(c-'0')
-			if inDecimal {
-				divisor *= 10
-			}
-			hasValue = true
+		if c < '0' || c > '9' {
+			return 0
+		}
+		hasDigit = true
+		val = val*10 + float64(c-'0')
+		if inDecimal {
+			divisor *= 10
 		}
 	}
-	if !hasValue {
+	if !hasDigit {
 		return 0
 	}
 	if divisor > 1 {
 		val /= float64(divisor)
+	}
+	if negative {
+		val = -val
 	}
 	return val
 }

@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -72,11 +73,13 @@ func MonteCarlo(args []string, interest float64) {
 
 	duration := time.Since(start)
 
+	finalRates := make([]float64, numPaths)
 	var totalRate float64
 	var minRate, maxRate float64 = 1e9, -1e9
 
-	for _, path := range paths {
+	for i, path := range paths {
 		rate := path[steps]
+		finalRates[i] = rate
 		totalRate += rate
 		if rate < minRate {
 			minRate = rate
@@ -88,6 +91,19 @@ func MonteCarlo(args []string, interest float64) {
 
 	avgRate := totalRate / float64(numPaths)
 
+	// Compute percentiles
+	slices.Sort(finalRates)
+	percentiles := []struct {
+		p    float64
+		name string
+	}{
+		{0.05, "5th (VaR 95%)"},
+		{0.25, "25th"},
+		{0.50, "50th (Median)"},
+		{0.75, "75th"},
+		{0.95, "95th"},
+	}
+
 	fmt.Printf("\n=== Monte Carlo Results ===\n")
 	fmt.Printf("Paths Generated: %d\n", numPaths)
 	fmt.Printf("Duration: %v\n", duration)
@@ -96,6 +112,14 @@ func MonteCarlo(args []string, interest float64) {
 	fmt.Printf("  Average: %.4f%%\n", avgRate*100)
 	fmt.Printf("  Minimum: %.4f%%\n", minRate*100)
 	fmt.Printf("  Maximum: %.4f%%\n", maxRate*100)
+	fmt.Printf("\nPercentiles:\n")
+	for _, p := range percentiles {
+		idx := int(p.p * float64(numPaths))
+		if idx >= numPaths {
+			idx = numPaths - 1
+		}
+		fmt.Printf("  %s: %.4f%%\n", p.name, finalRates[idx]*100)
+	}
 
 	os.Exit(0)
 }

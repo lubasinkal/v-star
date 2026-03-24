@@ -248,3 +248,73 @@ func BenchmarkTermImmediate(b *testing.B) {
 		_ = calc.TermImmediate(30, 20, 1000)
 	}
 }
+
+func TestWholeLifeNSP_ExactValues(t *testing.T) {
+	// Uniform 10% mortality, i=0
+	qx := []float64{0.1, 0.1, 0.1, 0.1, 0.1, 0.1}
+	mort := mortality.NewTable("uniform-10", qx)
+	converter := rates.NewRateConverter(0.0)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	// A_x = sum(q(x+t-1) * v^t)
+	// With i=0, v=1. A_0 = 0.1*1 + 0.1*1 + 0.1*1 + 0.1*1 + 0.1*1 + 0.1*1 = 0.6
+	got := calc.WholeLifeNSP(0, 1000)
+	expected := 1000.0 * 0.6
+	if !floatEquals(got, expected) {
+		t.Errorf("WholeLifeNSP(0,1000) = %.6f, want %.6f", got, expected)
+	}
+}
+
+func TestTermNSP_ExactValues(t *testing.T) {
+	// Uniform 10% mortality, i=0
+	qx := []float64{0.1, 0.1, 0.1, 0.1, 0.1, 0.1}
+	mort := mortality.NewTable("uniform-10", qx)
+	converter := rates.NewRateConverter(0.0)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	// A^1_{0:3} = q0*1*1 + Px(0,1)*q1*1 + Px(0,2)*q2*1
+	// = 0.1*1*1 + 0.9*0.1*1 + 0.81*0.1*1 = 0.1 + 0.09 + 0.081 = 0.271
+	got := calc.TermNSP(0, 3, 1000)
+	expected := 1000.0 * (0.1 + 0.9*0.1 + 0.81*0.1)
+	if !floatEquals(got, expected) {
+		t.Errorf("TermNSP(0,3,1000) = %.6f, want %.6f", got, expected)
+	}
+}
+
+func TestEndowmentNSP_Decomposition(t *testing.T) {
+	qx := []float64{0.1, 0.1, 0.1, 0.1, 0.1}
+	mort := mortality.NewTable("test", qx)
+	converter := rates.NewRateConverter(0.05)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	// Endowment = TermNSP + survival benefit
+	termNSP := calc.TermNSP(0, 3, 1000)
+	survival := 1000.0 * mort.Px(0, 3) * converter.Discount(3)
+	got := calc.EndowmentNSP(0, 3, 1000)
+	expected := termNSP + survival
+
+	if !floatEquals(got, expected) {
+		t.Errorf("EndowmentNSP = %.6f, want %.6f (term=%.6f + surv=%.6f)", got, expected, termNSP, survival)
+	}
+}
+
+func TestLifeInsurance_EdgeCases(t *testing.T) {
+	mort := zeroMortalityTable(120)
+	converter := rates.NewRateConverter(0.05)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	if got := calc.WholeLifeNSP(-1, 1000); got != 0 {
+		t.Errorf("WholeLifeNSP negative age = %v, want 0", got)
+	}
+	if got := calc.TermNSP(30, 0, 1000); got != 0 {
+		t.Errorf("TermNSP zero term = %v, want 0", got)
+	}
+	if got := calc.EndowmentNSP(30, 10, 0); got != 0 {
+		t.Errorf("EndowmentNSP zero amount = %v, want 0", got)
+	}
+
+	// Zero mortality: no deaths, so NSP should be 0
+	if got := calc.WholeLifeNSP(30, 1000); got != 0 {
+		t.Errorf("WholeLifeNSP zero mortality = %v, want 0", got)
+	}
+}

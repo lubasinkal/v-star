@@ -2,7 +2,6 @@ package reader
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -39,9 +38,7 @@ func StreamCensusChunked(filepath string, opts StreamOptions, processFn ChunkPro
 	if numWorkers <= 0 {
 		numWorkers = runtime.NumCPU()
 	}
-	if numWorkers > 8 {
-		numWorkers = 8
-	}
+	numWorkers = min(numWorkers, 8)
 
 	f, err := os.Open(filepath)
 	if err != nil {
@@ -82,142 +79,60 @@ func StreamCensusChunked(filepath string, opts StreamOptions, processFn ChunkPro
 // StreamCensusWithPV reads a census CSV, calculates PV for each record using pvFn,
 // and returns the total PV and record count. Uses parallel processing for large files.
 func StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(sumAssured float64, term int) float64) (float64, int) {
-	delimiter := opts.Delimiter
-	if delimiter == 0 {
-		delimiter = ','
-	}
-
-	f, err := os.Open(filepath)
+	f, headerOffset, dataSize, delimiter, err := openCSV(filepath, opts.CSVOptions)
 	if err != nil {
 		return 0, 0
 	}
 	defer f.Close()
 
-	info, err := f.Stat()
-	if err != nil {
-		return 0, 0
-	}
-	fileSize := info.Size()
-	headerOffset := int64(0)
-
-	if opts.Header {
-		scanner := bufio.NewScanner(f)
-		scanner.Buffer(make([]byte, 1024), 1024)
-		if scanner.Scan() {
-			headerOffset = int64(len(scanner.Bytes())) + 1
-		}
-	}
-
-	dataSize := fileSize - headerOffset
 	if dataSize <= 0 {
 		return 0, 0
 	}
 
-	chunkSize := opts.ChunkSize
-	if chunkSize <= 0 {
-		chunkSize = 100000
+	chunkThreshold := int64(opts.ChunkSize)
+	if chunkThreshold <= 0 {
+		chunkThreshold = 100000
 	}
 
-	if dataSize < int64(chunkSize)*100 {
+	if dataSize < chunkThreshold*100 {
 		return streamSequentialWithPV(f, opts, headerOffset, delimiter, pvFn)
 	}
 
-	numWorkers := min(runtime.NumCPU(), 8)
-
+	numWorkers := max(min(runtime.NumCPU(), 8), 1)
 	chunkSizeBytes := dataSize / int64(numWorkers)
-	type job struct {
-		id    int
-		start int64
-		end   int64
-	}
-
-	jobs := make([]job, numWorkers)
-	for w := 0; w < numWorkers; w++ {
-		start := headerOffset + int64(w)*chunkSizeBytes
-		end := start + chunkSizeBytes
-		if w == numWorkers-1 {
-			end = fileSize
-		}
-		jobs[w] = job{id: w, start: start, end: end}
-	}
+	jobs := buildChunks(headerOffset, dataSize, numWorkers)
 
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 	var totalPV float64
 	var totalCount int
-	var countMu sync.Mutex
-
-	processJob := func(j job) {
-		overlap := int64(8192)
-		readStart := j.start
-		readEnd := j.end
-
-		if j.end < fileSize {
-			readEnd = j.end + overlap
-			if readEnd > fileSize {
-				readEnd = fileSize
-			}
-		}
-
-		buf := make([]byte, readEnd-readStart)
-		n, err := f.ReadAt(buf, readStart)
-		if err != nil && err != io.EOF {
-			return
-		}
-		buf = buf[:n]
-
-		offset := 0
-		if j.id > 0 && len(buf) > 0 && buf[0] != '\n' {
-			newlineIdx := bytes.IndexByte(buf, '\n')
-			if newlineIdx >= 0 {
-				offset = newlineIdx + 1
-			}
-		}
-
-		originalEnd := int(j.end - j.start)
-		localPV := 0.0
-		localCount := 0
-		limit := opts.Limit
-
-		processedBytes := offset
-
-		for processedBytes < originalEnd && processedBytes < len(buf) {
-			if limit > 0 && localCount >= limit {
-				break
-			}
-			newlineIdx := bytes.IndexByte(buf[processedBytes:], '\n')
-			var line []byte
-			if newlineIdx < 0 {
-				break
-			} else {
-				line = buf[processedBytes : processedBytes+newlineIdx]
-				processedBytes += newlineIdx + 1
-			}
-
-			if len(line) > 0 && line[len(line)-1] == '\r' {
-				line = line[:len(line)-1]
-			}
-
-			if len(line) == 0 {
-				continue
-			}
-
-			if r, err := parseCensusFastBytes(line, delimiter); err == nil {
-				localPV += pvFn(r.SumAssured, r.Term)
-				localCount++
-			}
-		}
-
-		countMu.Lock()
-		totalPV += localPV
-		totalCount += localCount
-		countMu.Unlock()
-	}
 
 	for w := 0; w < numWorkers; w++ {
 		wg.Add(1)
-		go func(j job) {
+		go func(j csvJob) {
 			defer wg.Done()
-			processJob(j)
+
+			localPV := 0.0
+			localCount := 0
+			limit := opts.Limit
+
+			processChunk(f, j, chunkSizeBytes, headerOffset, func(line []byte) {
+				if limit > 0 && localCount >= limit {
+					return
+				}
+				record, err := parseCensusFastBytes(line, delimiter)
+				if err == nil {
+					localPV += pvFn(record.SumAssured, record.Term)
+					localCount++
+				} else if opts.OnParseError != nil {
+					opts.OnParseError(-1, err)
+				}
+			})
+
+			mu.Lock()
+			totalPV += localPV
+			totalCount += localCount
+			mu.Unlock()
 		}(jobs[w])
 	}
 
@@ -277,28 +192,7 @@ func streamSequentialChunked(f *os.File, opts StreamOptions, headerOffset int64,
 func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, delimiter byte, processFn ChunkProcessor, numWorkers int, dataSize int) (int, error) {
 	chunkSize := opts.ChunkSize
 	chunkSizeBytes := dataSize / numWorkers
-	overlap := 8192
-
-	type job struct {
-		id    int
-		start int64
-		end   int64
-	}
-
-	jobs := make([]job, numWorkers)
-	for w := range numWorkers {
-		start := headerOffset + int64(w)*int64(chunkSizeBytes)
-		end := start + int64(chunkSizeBytes)
-		hasOverlap := w < numWorkers-1
-
-		if hasOverlap {
-			end = end + int64(overlap)
-			if end > int64(dataSize)+headerOffset {
-				end = int64(dataSize) + headerOffset
-			}
-		}
-		jobs[w] = job{id: w, start: start, end: end}
-	}
+	jobs := buildChunks(headerOffset, int64(dataSize), numWorkers)
 
 	results := make([][]CensusRecord, numWorkers)
 	var wg sync.WaitGroup
@@ -306,60 +200,20 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 	var totalCount int32
 	var firstErr error
 
-	processJob := func(job job) ([]CensusRecord, error) {
-		readStart := job.start
-		readEnd := job.end
-
-		bufSize := int(readEnd - readStart)
-		buf := make([]byte, bufSize)
-		n, err := f.ReadAt(buf, readStart)
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-		buf = buf[:n]
-
-		originalEnd := int(chunkSizeBytes)
-
-		offset := 0
-		if job.id > 0 && len(buf) > 0 && buf[0] != '\n' {
-			i := bytes.IndexByte(buf, '\n')
-			if i >= 0 {
-				offset = i + 1
-			}
-		}
-
-		records := make([]CensusRecord, 0, chunkSize)
-		processedBytes := offset
-		for processedBytes < originalEnd && processedBytes < len(buf) {
-			i := bytes.IndexByte(buf[processedBytes:], '\n')
-			var line []byte
-			if i < 0 {
-				break
-			}
-			line = buf[processedBytes : processedBytes+i]
-			processedBytes += i + 1
-
-			if len(line) > 0 && line[len(line)-1] == '\r' {
-				line = line[:len(line)-1]
-			}
-
-			if len(line) == 0 {
-				continue
-			}
-
-			if r, err := parseCensusFastBytes(line, delimiter); err == nil {
-				records = append(records, r)
-			}
-		}
-
-		return records, nil
-	}
-
 	for w := range numWorkers {
 		wg.Add(1)
-		go func(idx int) {
+		go func(j csvJob) {
 			defer wg.Done()
-			records, err := processJob(jobs[idx])
+
+			records := make([]CensusRecord, 0, chunkSize)
+
+			err := processChunk(f, j, int64(chunkSizeBytes), headerOffset, func(line []byte) {
+				if r, err := parseCensusFastBytes(line, delimiter); err == nil {
+					records = append(records, r)
+				} else if opts.OnParseError != nil {
+					opts.OnParseError(-1, err)
+				}
+			})
 			if err != nil {
 				mu.Lock()
 				if firstErr == nil {
@@ -368,9 +222,9 @@ func streamParallelChunked(f *os.File, opts StreamOptions, headerOffset int64, d
 				mu.Unlock()
 				return
 			}
-			results[idx] = records
+			results[j.id] = records
 			atomic.AddInt32(&totalCount, int32(len(records)))
-		}(w)
+		}(jobs[w])
 	}
 
 	wg.Wait()
@@ -426,11 +280,9 @@ func streamSequentialWithPV(f *os.File, opts StreamOptions, headerOffset int64, 
 		if len(line) == 0 {
 			continue
 		}
-
 		if len(line) > 0 && line[len(line)-1] == '\r' {
 			line = line[:len(line)-1]
 		}
-
 		if len(line) == 0 {
 			continue
 		}

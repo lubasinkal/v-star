@@ -100,6 +100,8 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 			if err == nil {
 				fn(record)
 				count++
+			} else if opts.OnParseError != nil {
+				opts.OnParseError(count, err)
 			}
 		}
 		return scanner.Err()
@@ -174,6 +176,8 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 				record, err := parseCensusFastBytes(line, delimiter)
 				if err == nil {
 					batch = append(batch, record)
+				} else if opts.OnParseError != nil {
+					opts.OnParseError(-1, err)
 				}
 			}
 			results[idx].records = batch
@@ -239,21 +243,30 @@ func parseCensusFastBytes(line []byte, delimiter byte) (CensusRecord, error) {
 	}
 
 	// Parse age from field 1
-	age := parseFastInt(line[:c1])
+	age, ok := parseFastInt(line[:c1])
+	if !ok || age < 0 {
+		return CensusRecord{}, errors.New("invalid age field")
+	}
 
 	// Extract sex (field 2) and policy_type (field 3) as interned strings
 	sex := sexString(line[c1+1 : c2])
 	policyType := policyString(line[c2+1 : c3])
 
 	// Parse sum_assured from field 4
-	sumAssured := parseFastFloat(line[c3+1 : c4])
+	sumAssured, ok := parseFastFloat(line[c3+1 : c4])
+	if !ok || sumAssured < 0 {
+		return CensusRecord{}, errors.New("invalid sum_assured field")
+	}
 
 	// Parse term from field 5 (trim trailing \r)
 	termField := line[c4+1:]
 	if len(termField) > 0 && termField[len(termField)-1] == '\r' {
 		termField = termField[:len(termField)-1]
 	}
-	term := parseFastInt(termField)
+	term, ok := parseFastInt(termField)
+	if !ok || term < 0 {
+		return CensusRecord{}, errors.New("invalid term field")
+	}
 
 	return CensusRecord{
 		Age:        age,
@@ -265,39 +278,85 @@ func parseCensusFastBytes(line []byte, delimiter byte) (CensusRecord, error) {
 }
 
 // parseFastInt parses an integer from a byte slice without allocation.
-func parseFastInt(b []byte) int {
+// Returns the parsed value and true on success, or 0 and false if the input
+// contains non-digit characters (other than a leading '-').
+func parseFastInt(b []byte) (int, bool) {
+	if len(b) == 0 {
+		return 0, false
+	}
 	n := 0
-	for i := range b {
-		c := b[i]
-		if c >= '0' && c <= '9' {
-			n = n*10 + int(c-'0')
+	negative := false
+	start := 0
+	if b[0] == '-' {
+		negative = true
+		start = 1
+		if len(b) == 1 {
+			return 0, false
 		}
 	}
-	return n
+	for i := start; i < len(b); i++ {
+		c := b[i]
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		n = n*10 + int(c-'0')
+	}
+	if negative {
+		return -n, true
+	}
+	return n, true
 }
 
 // parseFastFloat parses a float from a byte slice without allocation.
-func parseFastFloat(b []byte) float64 {
+// Returns the parsed value and true on success, or 0 and false if the input
+// is invalid (non-numeric characters, multiple decimal points, etc.).
+func parseFastFloat(b []byte) (float64, bool) {
+	if len(b) == 0 {
+		return 0, false
+	}
 	val := 0.0
 	divisor := 1
 	inDecimal := false
-	for i := range b {
+	negative := false
+	start := 0
+	hasDigit := false
+
+	if b[0] == '-' {
+		negative = true
+		start = 1
+		if len(b) == 1 {
+			return 0, false
+		}
+	}
+
+	for i := start; i < len(b); i++ {
 		c := b[i]
 		if c == '.' {
+			if inDecimal {
+				return 0, false
+			}
 			inDecimal = true
 			continue
 		}
-		if c >= '0' && c <= '9' {
-			val = val*10 + float64(c-'0')
-			if inDecimal {
-				divisor *= 10
-			}
+		if c < '0' || c > '9' {
+			return 0, false
 		}
+		hasDigit = true
+		val = val*10 + float64(c-'0')
+		if inDecimal {
+			divisor *= 10
+		}
+	}
+	if !hasDigit {
+		return 0, false
 	}
 	if divisor > 1 {
 		val /= float64(divisor)
 	}
-	return val
+	if negative {
+		val = -val
+	}
+	return val, true
 }
 
 // ParseCensusRow converts generic string fields to a CensusRecord using column mapping.

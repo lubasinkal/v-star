@@ -88,3 +88,94 @@ func (r *RateConverter) PresentValueStar(sumAssured float64, term int, j float64
 func NominalToEffective(im float64, m int) float64 {
 	return math.Pow(1+(im/float64(m)), float64(m)) - 1
 }
+
+// EffectiveToNominal converts an effective annual rate to a nominal rate
+// compounded m times per period: im = m * ((1+i)^(1/m) - 1).
+func EffectiveToNominal(i float64, m int) float64 {
+	return float64(m) * (math.Pow(1+i, 1/float64(m)) - 1)
+}
+
+// ForceOfInterest returns the force of interest delta = ln(1+i).
+func ForceOfInterest(i float64) float64 {
+	return math.Log(1 + i)
+}
+
+// InterestFromForce converts a force of interest to an effective annual rate: i = e^delta - 1.
+func InterestFromForce(delta float64) float64 {
+	return math.Exp(delta) - 1
+}
+
+// AnnuityCertainImmediate returns the present value of an annuity-certain-immediate:
+// a_angle_n = (1 - v^n) / i.
+func AnnuityCertainImmediate(i float64, n int) float64 {
+	if n <= 0 || i <= 0 {
+		return 0
+	}
+	v := 1 / (1 + i)
+	return (1 - math.Pow(v, float64(n))) / i
+}
+
+// AnnuityCertainDue returns the present value of an annuity-certain-due:
+// adbl_angle_n = (1 - v^n) / d where d = i/(1+i).
+func AnnuityCertainDue(i float64, n int) float64 {
+	if n <= 0 || i <= 0 {
+		return 0
+	}
+	v := 1 / (1 + i)
+	d := i / (1 + i)
+	return (1 - math.Pow(v, float64(n))) / d
+}
+
+// MacaulayDuration computes the Macaulay duration of a cash flow stream.
+// cashFlows[t] is the cash flow at time t (t=1..len(cashFlows)).
+// Returns sum(t * PV_t) / sum(PV_t).
+func MacaulayDuration(i float64, cashFlows []float64) float64 {
+	if i <= 0 || len(cashFlows) == 0 {
+		return 0
+	}
+	v := 1 / (1 + i)
+	pvTotal := 0.0
+	duration := 0.0
+	for t, cf := range cashFlows {
+		if cf <= 0 {
+			continue
+		}
+		pv := cf * math.Pow(v, float64(t+1))
+		pvTotal += pv
+		duration += float64(t+1) * pv
+	}
+	if pvTotal <= 0 {
+		return 0
+	}
+	return duration / pvTotal
+}
+
+// ModifiedDuration computes the modified duration: MacaulayDuration / (1+i).
+// This measures the sensitivity of bond price to interest rate changes.
+func ModifiedDuration(i float64, cashFlows []float64) float64 {
+	md := MacaulayDuration(i, cashFlows)
+	return md / (1 + i)
+}
+
+// Convexity computes the convexity of a cash flow stream.
+// Returns sum(t*(t+1)*PV_t) / ((1+i)^2 * PV_total).
+func Convexity(i float64, cashFlows []float64) float64 {
+	if i <= 0 || len(cashFlows) == 0 {
+		return 0
+	}
+	v := 1 / (1 + i)
+	pvTotal := 0.0
+	conv := 0.0
+	for t, cf := range cashFlows {
+		if cf <= 0 {
+			continue
+		}
+		pv := cf * math.Pow(v, float64(t+1))
+		pvTotal += pv
+		conv += float64(t+1) * float64(t+2) * pv
+	}
+	if pvTotal <= 0 {
+		return 0
+	}
+	return conv / (pvTotal * (1 + i) * (1 + i))
+}

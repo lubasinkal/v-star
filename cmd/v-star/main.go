@@ -9,12 +9,20 @@ import (
 	"github.com/lubasinkal/v-star/pkg/rates"
 )
 
+const version = "0.2.0"
+
 func main() {
 	interest := flag.Float64("i", 0.05, "The effective annual interest rate (e.g., 0.05 for 5%)")
 	growth := flag.Float64("j", 0.02, "The compounding growth rate for v-star logic")
 	help := flag.Bool("h", false, "Show help")
+	showVersion := flag.Bool("version", false, "Show version")
 
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("v-star %s\n", version)
+		os.Exit(0)
+	}
 
 	if *help {
 		printHelp()
@@ -31,7 +39,12 @@ func main() {
 			commands.MonteCarlo(args, *interest)
 		case "bench":
 			commands.Bench()
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n\n", args[0])
+			printHelp()
+			os.Exit(1)
 		}
+		return
 	}
 
 	// Default: rate calculation
@@ -62,4 +75,5 @@ func printHelp() {
 	fmt.Println("  v-star read policies.csv --output=json")
 	fmt.Println("  v-star montecarlo --paths=100000 --steps=10 --seed=42")
 	fmt.Println("  v-star bench")
+	fmt.Println("  v-star --version")
 }
