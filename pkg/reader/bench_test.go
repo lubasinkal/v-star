@@ -118,10 +118,10 @@ func TestParseCensusFastBytesCorrectness(t *testing.T) {
 		sum   float64
 		term  int
 	}{
-		{"30,male,term,100000.50,20", 30, "male", "term", 100000.50, 20},
-		{"25,female,endowment,50000.00,10", 25, "female", "endowment", 50000.00, 10},
-		{"65,male,whole,75000.75,5", 65, "male", "whole", 75000.75, 5},
-		{"40,female,term,1234567.89,30", 40, "female", "term", 1234567.89, 30},
+		{"30,male,term,100000.50,20", "male", "term", 30, 100000.50, 20},
+		{"25,female,endowment,50000.00,10", "female", "endowment", 25, 50000.00, 10},
+		{"65,male,whole,75000.75,5", "male", "whole", 65, 75000.75, 5},
+		{"40,female,term,1234567.89,30", "female", "term", 40, 1234567.89, 30},
 	}
 
 	for _, tt := range tests {

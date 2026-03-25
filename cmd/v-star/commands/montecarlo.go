@@ -97,11 +97,11 @@ func MonteCarlo(args []string, interest float64) {
 		name string
 		p    float64
 	}{
-		{0.05, "5th (VaR 95%)"},
-		{0.25, "25th"},
-		{0.50, "50th (Median)"},
-		{0.75, "75th"},
-		{0.95, "95th"},
+		{"5th (VaR 95%)", 0.05},
+		{"25th", 0.25},
+		{"50th (Median)", 0.50},
+		{"75th", 0.75},
+		{"95th", 0.95},
 	}
 
 	fmt.Printf("\n=== Monte Carlo Results ===\n")

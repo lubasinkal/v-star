@@ -175,12 +175,12 @@ func TestEdgeCases_ZeroAmount(t *testing.T) {
 		fn   func() float64
 		name string
 	}{
-		{"WholeLifeImmediate", func() float64 { return calc.WholeLifeImmediate(30, 0) }},
-		{"TermImmediate", func() float64 { return calc.TermImmediate(30, 10, 0) }},
-		{"WholeLifeDue", func() float64 { return calc.WholeLifeDue(30, 0) }},
-		{"TermDue", func() float64 { return calc.TermDue(30, 10, 0) }},
-		{"DeferredWholeLife", func() float64 { return calc.DeferredWholeLife(30, 5, 0) }},
-		{"DeferredTerm", func() float64 { return calc.DeferredTerm(30, 5, 10, 0) }},
+		{func() float64 { return calc.WholeLifeImmediate(30, 0) }, "WholeLifeImmediate"},
+		{func() float64 { return calc.TermImmediate(30, 10, 0) }, "TermImmediate"},
+		{func() float64 { return calc.WholeLifeDue(30, 0) }, "WholeLifeDue"},
+		{func() float64 { return calc.TermDue(30, 10, 0) }, "TermDue"},
+		{func() float64 { return calc.DeferredWholeLife(30, 5, 0) }, "DeferredWholeLife"},
+		{func() float64 { return calc.DeferredTerm(30, 5, 10, 0) }, "DeferredTerm"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
