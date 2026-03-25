@@ -112,9 +112,9 @@ func BenchmarkParseFields(b *testing.B) {
 func TestParseCensusFastBytesCorrectness(t *testing.T) {
 	tests := []struct {
 		line  string
-		age   int
 		sex   string
 		pType string
+		age   int
 		sum   float64
 		term  int
 	}{

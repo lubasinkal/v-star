@@ -11,10 +11,10 @@ type RatePath []float64
 // RateGenerator generates stochastic interest rate paths using geometric Brownian motion.
 // It supports deterministic seeding for reproducible actuarial simulations.
 type RateGenerator struct {
-	initialRate float64
-	mu          float64 // drift
-	sigma       float64 // volatility
 	rng         *rand.Rand
+	initialRate float64
+	mu          float64
+	sigma       float64
 }
 
 // NewRateGenerator creates a new rate generator with a random seed.

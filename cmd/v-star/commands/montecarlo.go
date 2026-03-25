@@ -94,8 +94,8 @@ func MonteCarlo(args []string, interest float64) {
 	// Compute percentiles
 	slices.Sort(finalRates)
 	percentiles := []struct {
-		p    float64
 		name string
+		p    float64
 	}{
 		{0.05, "5th (VaR 95%)"},
 		{0.25, "25th"},

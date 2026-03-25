@@ -8,9 +8,9 @@ import (
 
 // JSONRecord represents a record to be written as JSON
 type JSONRecord struct {
-	Age          int     `json:"age"`
 	Sex          string  `json:"sex"`
 	PolicyType   string  `json:"policy_type"`
+	Age          int     `json:"age"`
 	SumAssured   float64 `json:"sum_assured"`
 	Term         int     `json:"term"`
 	PresentValue float64 `json:"present_value"`

@@ -82,9 +82,9 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 	calc := annuities.NewAnnuityCalculator(&rates.RateConverter{EffectiveRate: interest}, mort)
 
 	type AnnuityResult struct {
-		Age          int
 		Sex          string
 		PolicyType   string
+		Age          int
 		SumAssured   float64
 		Term         int
 		PresentValue float64

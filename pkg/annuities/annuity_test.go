@@ -172,8 +172,8 @@ func TestEdgeCases_ZeroAmount(t *testing.T) {
 	calc := NewAnnuityCalculator(converter, mort)
 
 	tests := []struct {
-		name string
 		fn   func() float64
+		name string
 	}{
 		{"WholeLifeImmediate", func() float64 { return calc.WholeLifeImmediate(30, 0) }},
 		{"TermImmediate", func() float64 { return calc.TermImmediate(30, 10, 0) }},

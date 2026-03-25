@@ -10,9 +10,9 @@ import (
 
 // WorkerPool processes CensusRecords in parallel using goroutines.
 type WorkerPool struct {
-	workers   int
 	converter *rates.RateConverter
 	wg        sync.WaitGroup
+	workers   int
 }
 
 // NewWorkerPool creates a new worker pool with the specified number of workers.

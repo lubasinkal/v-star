@@ -11,8 +11,8 @@ type DiscountFactor interface {
 // RateConverter performs interest rate conversions and present value calculations.
 // It pre-computes a discount table for terms 0 through 100 for fast lookups.
 type RateConverter struct {
-	EffectiveRate float64
 	discountTable []float64
+	EffectiveRate float64
 }
 
 // NewRateConverter creates a RateConverter for the given effective annual rate.

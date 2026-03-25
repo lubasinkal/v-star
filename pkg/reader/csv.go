@@ -14,10 +14,10 @@ import (
 
 // CSVOptions configures CSV reading behavior.
 type CSVOptions struct {
-	Header       bool                         // First row contains column names
-	Limit        int                          // Max rows to read (0 = unlimited)
-	Delimiter    byte                         // Column delimiter (default ',')
-	OnParseError func(lineNum int, err error) // Optional callback for parse errors (nil = silently skip)
+	OnParseError func(lineNum int, err error)
+	Limit        int
+	Header       bool
+	Delimiter    byte
 }
 
 // ParseStats tracks CSV parsing statistics.
