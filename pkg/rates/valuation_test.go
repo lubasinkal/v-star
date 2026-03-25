@@ -56,7 +56,7 @@ func TestPresentValueStar(t *testing.T) {
 func BenchmarkPresentValue(b *testing.B) {
 	converter := RateConverter{EffectiveRate: 0.05}
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = converter.PresentValue(1000, 10)
 	}
 }

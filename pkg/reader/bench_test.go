@@ -13,9 +13,8 @@ func BenchmarkStreamCensus(b *testing.B) {
 		b.Skip("10M.csv not found")
 	}
 
-	b.ResetTimer()
 	b.SetBytes(288 * 1024 * 1024) // file size for throughput calc
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		count := 0
 		StreamCensus(filepath, CSVOptions{Header: true, Limit: 5000000}, func(r CensusRecord) {
 			count++
@@ -31,9 +30,8 @@ func BenchmarkStreamCensusNoStore(b *testing.B) {
 		b.Skip("10M.csv not found")
 	}
 
-	b.ResetTimer()
 	b.SetBytes(288 * 1024 * 1024)
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		StreamCensus(filepath, CSVOptions{Header: true, Limit: 5000000}, func(r CensusRecord) {
 			_ = r.Age // minimal callback
 		})
@@ -43,8 +41,8 @@ func BenchmarkStreamCensusNoStore(b *testing.B) {
 // BenchmarkParseCensusFastBytes measures raw byte-level parsing speed.
 func BenchmarkParseCensusFastBytes(b *testing.B) {
 	line := []byte("30,male,term,100000.50,20")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_, _ = parseCensusFastBytes(line, ',')
 	}
 }
@@ -57,9 +55,8 @@ func BenchmarkStreamCSV(b *testing.B) {
 		b.Skip("10M.csv not found")
 	}
 
-	b.ResetTimer()
 	b.SetBytes(288 * 1024 * 1024)
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		count := 0
 		StreamCSV(filepath, CSVOptions{Header: true, Limit: 5000000}, func(fields []string) {
 			count++
@@ -76,9 +73,8 @@ func BenchmarkStreamCSVParallel(b *testing.B) {
 		b.Skip("10M.csv not found")
 	}
 
-	b.ResetTimer()
 	b.SetBytes(288 * 1024 * 1024)
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		StreamCSVWithPV(filepath, CSVOptions{Header: true, Limit: 5000000}, func(sumAssured float64, term int) float64 {
 			return sumAssured
 		})
@@ -93,9 +89,8 @@ func BenchmarkStreamCSVRaw(b *testing.B) {
 		b.Skip("10M.csv not found")
 	}
 
-	b.ResetTimer()
 	b.SetBytes(288 * 1024 * 1024)
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		count := 0
 		StreamCSVRaw(filepath, CSVOptions{Header: true, Limit: 5000000}, func(fields [][]byte) {
 			count++
@@ -107,8 +102,8 @@ func BenchmarkStreamCSVRaw(b *testing.B) {
 // BenchmarkParseFields measures generic field splitting speed.
 func BenchmarkParseFields(b *testing.B) {
 	line := []byte("30,male,term,100000.50,20")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_ = parseFields(line, ',')
 	}
 }

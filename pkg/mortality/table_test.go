@@ -124,7 +124,7 @@ func BenchmarkQx(b *testing.B) {
 	}
 	table := NewTable("bench", qx)
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for age := 0; age <= 120; age++ {
 			_ = table.Qx(age)
 		}
@@ -138,7 +138,7 @@ func BenchmarkPx(b *testing.B) {
 	}
 	table := NewTable("bench", qx)
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for age := 0; age <= 100; age++ {
 			_ = table.Px(age, 20)
 		}
