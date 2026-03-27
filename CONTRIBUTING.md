@@ -29,16 +29,18 @@ go vet ./...
 
 ```
 cmd/v-star/         # CLI application
+cmd/generate/       # Test data generator
 pkg/rates/          # Interest rate calculations
 pkg/mortality/      # Mortality tables
 pkg/annuities/      # Annuity calculations
 pkg/reserves/       # Policy reserves
 pkg/stochastic/     # Monte Carlo simulations
 pkg/risk/           # Risk measures (VaR, CTE)
-pkg/reader/         # CSV parsing
+pkg/reader/         # CSV parsing and CensusRecord
 pkg/writer/         # JSON output
 pkg/concurrency/    # Worker pool
 examples/           # Runnable examples
+docs/               # Documentation and roadmap
 ```
 
 ## How to Contribute

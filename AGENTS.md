@@ -55,14 +55,20 @@ cmd/
 
 pkg/
   rates/           # Interest rate calculations, discount factors, DiscountFactor interface
-  stochastic/     # Monte Carlo simulations, geometric Brownian motion
-  mortality/      # Mortality tables, qx/px calculations, CSV loading
-  annuities/      # Annuity calculations (whole life, term, deferred)
-  reserves/       # Policy reserves (net premium, gross premium, prospective)
-  reader/         # CSV parsing (streaming, parallel)
-  writer/         # JSON output streaming
-  concurrency/    # Worker pool for parallel processing
-  models/         # Data structures (CensusRecord)
+  stochastic/      # Monte Carlo simulations, geometric Brownian motion
+  mortality/       # Mortality tables, qx/px calculations, CSV loading
+  annuities/       # Annuity calculations (whole life, term, deferred)
+  reserves/        # Policy reserves (net premium, gross premium, prospective)
+  risk/            # Risk measures (VaR, CTE, Expected Shortfall)
+  reader/          # CSV parsing (streaming, parallel), CensusRecord struct
+  writer/          # JSON output streaming
+  concurrency/     # Worker pool for parallel processing
+
+examples/
+  quickstart/      # Basic present value and duration demo
+  monte_carlo_risk/ # Monte Carlo + VaR/CTE risk analysis
+  csv_valuation/   # CSV streaming with valuation
+  python_bridge/   # Python wrapper and Jupyter notebook
 ```
 
 ## Code Style Guidelines
@@ -194,6 +200,7 @@ func TestPresentValue(t *testing.T) {
 - **CSV Parsing**: Custom zero-allocation streaming parser with parallel support
 - **Actuarial Calculations**: Present value, v-star discount factor, nominal-to-effective conversion
 - **Monte Carlo**: Geometric Brownian motion for interest rate simulation
+- **Risk Measures**: VaR, CTE (Expected Shortfall), full risk reports
 - **Concurrency**: Worker pool pattern with configurable goroutines
 
 ## Documentation

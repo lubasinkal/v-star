@@ -212,9 +212,9 @@ v-star is **~1.5x faster** with **~30% less memory** than Polars on this workloa
 |------|------|---------|-------------|
 | `--benchmark` | bool | `false` | Show timing and throughput |
 | `--limit` | int | `0` | Max rows to process (0 = all) |
-| `--header` | bool | `true` | CSV has header row |
+| `--header` | string | `true` | CSV has header row: `true` or `false` |
 | `--output` | string | `console` | Output format: `console` or `json` |
-| `--interest` | float64 | `-1` | Override global interest rate |
+| `--interest` | float64 | `0.05` | Override global interest rate |
 | `--table` | string | `""` | Mortality table CSV for annuity calculations |
 
 **`montecarlo` subcommand:**
