@@ -2,6 +2,7 @@
 
 **A high-performance, zero-dependency actuarial engine for Concurrent Financial Simulations built in Go.**
 
+[![CI](https://github.com/lubasinkal/v-star/actions/workflows/ci.yml/badge.svg)](https://github.com/lubasinkal/v-star/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.26-blue)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
@@ -38,6 +39,8 @@ Modern financial software is often bloated and slow. **v-star** is designed for:
 | **Reserves** | Net premium, gross premium, prospective, retrospective | |
 | **Rate Conversions** | Nominal↔effective, force of interest, duration/convexity | |
 | **Monte Carlo** | GBM interest rate paths with percentiles | ~100k paths/sec |
+| **Risk Measures** | VaR, CTE/Expected Shortfall, full risk reports | ~100k calcs/sec |
+| **Bond Pricing** | Duration, convexity, Macaulay/modified duration | |
 
 ## Quick Start
 
@@ -45,6 +48,22 @@ Modern financial software is often bloated and slow. **v-star** is designed for:
 
 ```bash
 go get github.com/lubasinkal/v-star
+```
+
+### Run Examples
+
+```bash
+# Quickstart: present values and duration
+go run ./examples/quickstart
+
+# Monte Carlo + VaR/CTE risk analysis
+go run ./examples/monte_carlo_risk
+
+# CSV streaming with valuation
+go run ./examples/csv_valuation
+
+# Python + matplotlib demo (requires Jupyter)
+cd examples/python_bridge && jupyter notebook demo.ipynb
 ```
 
 ### Library Usage
@@ -237,6 +256,8 @@ pkg/
 │   └── reserve.go            # Net/gross/prospective/retrospective reserves
 ├── stochastic/               # Monte Carlo simulations
 │   └── rates.go              # RateGenerator, GBM paths
+├── risk/                     # Risk measures
+│   └── risk.go               # VaR, CTE, Expected Shortfall
 ├── writer/                   # JSON output
 │   └── json.go               # JSONWriter, streaming JSON
 └── concurrency/              # Parallel processing
@@ -530,6 +551,59 @@ for t, rate := range path {
 
 // 100000 paths for Monte Carlo aggregation
 paths := rg.GeneratePaths(100000, 10, 1.0)
+```
+
+---
+
+### risk
+
+Risk measures for quantifying financial uncertainty from Monte Carlo simulations.
+
+#### Types
+
+```go
+// RiskReport contains comprehensive risk metrics from a simulation.
+type RiskReport struct {
+    Mean   float64
+    StdDev float64
+    Min    float64
+    Max    float64
+    VaR95  float64
+    VaR99  float64
+    CTE95  float64
+    CTE99  float64
+}
+```
+
+#### Functions
+
+| Signature | Description |
+|-----------|-------------|
+| `VaR(losses []float64, confidence float64) float64` | Value at Risk at given confidence level |
+| `CTE(losses []float64, confidence float64) float64` | Conditional Tail Expectation (Expected Shortfall) |
+| `ExpectedShortfall(losses []float64, confidence float64) float64` | Alias for CTE |
+| `ComputeReport(losses []float64) RiskReport` | Full risk report with VaR and CTE at multiple levels |
+
+```go
+// Simulate losses from interest rate scenarios
+rg := stochastic.NewRateGeneratorWithSeed(0.05, 0.02, 0.15, 42)
+paths := rg.GeneratePaths(100000, 10, 1.0)
+
+losses := make([]float64, len(paths))
+notional := 1000000.0
+for i, path := range paths {
+    loss := math.Max(0, 0.05 - path[10]) * notional
+    losses[i] = loss
+}
+
+// Compute risk metrics
+report := risk.ComputeReport(losses)
+fmt.Printf("VaR 95%%: $%.2f\n", report.VaR95)
+fmt.Printf("CTE 95%%: $%.2f\n", report.CTE95)
+
+// Or use individual functions
+var95 := risk.VaR(losses, 0.95)
+cte95 := risk.CTE(losses, 0.95)
 ```
 
 ---
