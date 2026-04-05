@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v-star — High-Performance Actuarial Engine</title>
+    <meta name="description" content="A zero-dependency, high-performance actuarial engine for concurrent financial simulations built in Go.">
+    <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="#" class="nav-brand">
+                <span class="brand-symbol">v*</span>
+                <span class="brand-name">v-star</span>
+            </a>
+            <button class="nav-toggle" aria-label="Toggle navigation">
+                <span></span><span></span><span></span>
+            </button>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#performance">Performance</a></li>
+                <li><a href="#roadmap">Roadmap</a></li>
+                <li><a href="#releases">Releases</a></li>
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="https://github.com/lubasinkal/v-star" class="nav-cta" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="container hero-content">
+            <div class="hero-badge">Open Source · MIT License · Go 1.26</div>
+            <h1>
+                <span class="hero-symbol">v*</span>
+                <span class="hero-title">Actuarial Engine</span>
+            </h1>
+            <p class="hero-subtitle">
+                Zero-dependency. Extreme speed. Built for concurrent financial simulations.
+            </p>
+            <div class="hero-actions">
+                <a href="#getting-started" class="btn btn-primary">Get Started</a>
+                <a href="https://github.com/lubasinkal/v-star" class="btn btn-secondary" target="_blank">View on GitHub</a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <span class="stat-value">28M+</span>
+                    <span class="stat-label">Rows/sec CSV Parsing</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">0</span>
+                    <span class="stat-label">External Dependencies</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">1.5×</span>
+                    <span class="stat-label">Faster than Polars</span>
+                </div>
+            </div>
+        </div>
+        <div class="hero-bg"></div>
+    </header>
+
+    <section id="features" class="section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Features</h2>
+                <p>Comprehensive actuarial toolkit with performance-first architecture</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    </div>
+                    <h3>Extreme Performance</h3>
+                    <p>28M+ rows/sec CSV parsing with parallel chunked streaming. Pre-computed discount tables for O(1) lookups.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+                    </div>
+                    <h3>Zero Dependencies</h3>
+                    <p>Go Standard Library only. No supply-chain risk, no dependency hell, minimal attack surface.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="4"/></svg>
+                    </div>
+                    <h3>Rate Conversions</h3>
+                    <p>Nominal ↔ effective rates, force of interest, v-star discount factor, Macaulay/modified duration, convexity.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+                    </div>
+                    <h3>Mortality Tables</h3>
+                    <p>CSV-loaded mortality tables with qx/px calculations, curtate life expectancy, and radix-based lx computations.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <h3>Annuities & Insurance</h3>
+                    <p>Whole life, term, deferred annuities (immediate & due). Net single premiums for whole life, term, and endowment.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                    </div>
+                    <h3>Policy Reserves</h3>
+                    <p>Net premium, gross premium, prospective, and retrospective reserve calculations with expense modeling.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </div>
+                    <h3>Monte Carlo Simulation</h3>
+                    <p>Geometric Brownian motion interest rate paths with Box-Muller transform. Deterministic seeding for auditability.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h3>Risk Measures</h3>
+                    <p>Value at Risk (VaR), Conditional Tail Expectation (CTE/Expected Shortfall), and comprehensive risk reports.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    </div>
+                    <h3>Streaming I/O</h3>
+                    <p>Zero-allocation CSV parsing with parallel processing. Streaming JSON output without buffering all records.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="performance" class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <h2>Performance</h2>
+                <p>Benchmarked on 10M row CSV (~288MB), 8-core Intel, Windows 11</p>
+            </div>
+            <div class="perf-grid">
+                <div class="perf-card">
+                    <h3>v-star vs Polars</h3>
+                    <table class="perf-table">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>v-star (Go)</th>
+                                <th>Polars 1.39</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Duration</td>
+                                <td class="highlight">347ms</td>
+                                <td>535ms</td>
+                            </tr>
+                            <tr>
+                                <td>Throughput</td>
+                                <td class="highlight">28.8M rows/sec</td>
+                                <td>18.7M rows/sec</td>
+                            </tr>
+                            <tr>
+                                <td>Peak RSS</td>
+                                <td class="highlight">349 MB</td>
+                                <td>~500 MB</td>
+                            </tr>
+                            <tr>
+                                <td>After Processing</td>
+                                <td class="highlight">0.2 MB (GC'd)</td>
+                                <td>~426 MB</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p class="perf-note">v-star is <strong>~1.5× faster</strong> with <strong>~30% less memory</strong>. Both produce identical PV results.</p>
+                </div>
+                <div class="perf-card">
+                    <h3>Throughput Benchmarks</h3>
+                    <div class="benchmark-bars">
+                        <div class="benchmark-item">
+                            <span class="benchmark-label">CSV Parsing</span>
+                            <div class="benchmark-bar">
+                                <div class="benchmark-fill" style="width: 100%"></div>
+                            </div>
+                            <span class="benchmark-value">28M rows/s</span>
+                        </div>
+                        <div class="benchmark-item">
+                            <span class="benchmark-label">PV Calculation</span>
+                            <div class="benchmark-bar">
+                                <div class="benchmark-fill" style="width: 95%"></div>
+                            </div>
+                            <span class="benchmark-value">28M calcs/s</span>
+                        </div>
+                        <div class="benchmark-item">
+                            <span class="benchmark-label">Monte Carlo</span>
+                            <div class="benchmark-bar">
+                                <div class="benchmark-fill" style="width: 35%"></div>
+                            </div>
+                            <span class="benchmark-value">100k paths/s</span>
+                        </div>
+                        <div class="benchmark-item">
+                            <span class="benchmark-label">Risk Measures</span>
+                            <div class="benchmark-bar">
+                                <div class="benchmark-fill" style="width: 90%"></div>
+                            </div>
+                            <span class="benchmark-value">100k calcs/s</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="roadmap" class="section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Roadmap</h2>
+                <p>Where v-star is headed</p>
+            </div>
+            <div class="roadmap">
+                <div class="roadmap-phase">
+                    <div class="phase-header phase-completed">
+                        <span class="phase-badge">Completed</span>
+                        <h3>v0.1 — Foundation</h3>
+                    </div>
+                    <ul class="phase-items">
+                        <li>Core rate conversions and discount factors</li>
+                        <li>v-star discount factor (v* = (1+j) × v)</li>
+                        <li>Parallel CSV parser with streaming</li>
+                        <li>CensusRecord parsing and valuation</li>
+                        <li>CLI with subcommands</li>
+                    </ul>
+                </div>
+                <div class="roadmap-phase">
+                    <div class="phase-header phase-completed">
+                        <span class="phase-badge">Completed</span>
+                        <h3>v0.2 — Actuarial Core</h3>
+                    </div>
+                    <ul class="phase-items">
+                        <li>Mortality table loading (CSV, qx/px)</li>
+                        <li>Whole life, term, deferred annuities</li>
+                        <li>Net single premiums (whole life, term, endowment)</li>
+                        <li>Policy reserves (net/gross/prospective/retrospective)</li>
+                        <li>Monte Carlo GBM simulation</li>
+                        <li>Risk measures (VaR, CTE)</li>
+                        <li>Duration and convexity calculations</li>
+                    </ul>
+                </div>
+                <div class="roadmap-phase">
+                    <div class="phase-header phase-current">
+                        <span class="phase-badge">In Progress</span>
+                        <h3>v0.3 — Production Readiness</h3>
+                    </div>
+                    <ul class="phase-items">
+                        <li>Lapse and surrender modeling</li>
+                        <li>Expense modeling (fixed, percentage, stepped)</li>
+                        <li>Profit testing and profit signatures</li>
+                        <li>Tax calculations</li>
+                        <li>Regression tests against Prophet/AXIS/Moses</li>
+                        <li>IFoA CM1/CM2 exam table test suites</li>
+                        <li>Multi-state model framework</li>
+                    </ul>
+                </div>
+                <div class="roadmap-phase">
+                    <div class="phase-header phase-planned">
+                        <span class="phase-badge">Planned</span>
+                        <h3>v0.4 — Advanced Modeling</h3>
+                    </div>
+                    <ul class="phase-items">
+                        <li>Stochastic mortality (Lee-Carter, CBD)</li>
+                        <li>Asset-liability management (ALM)</li>
+                        <li>Cash flow matching</li>
+                        <li>Guarantee valuation (GMDB, GMWB)</li>
+                        <li>IFRS 17 compliance calculations</li>
+                        <li>Audit trail and result versioning</li>
+                    </ul>
+                </div>
+                <div class="roadmap-phase">
+                    <div class="phase-header phase-planned">
+                        <span class="phase-badge">Future</span>
+                        <h3>v1.0 — Enterprise</h3>
+                    </div>
+                    <ul class="phase-items">
+                        <li>Multi-currency support</li>
+                        <li>Distributed computation</li>
+                        <li>Python/R native bindings</li>
+                        <li>WebAssembly for browser-based demos</li>
+                        <li>Actuarial model DSL</li>
+                        <li>Full IFRS 17 / Solvency II compliance</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="releases" class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <h2>Release Notes</h2>
+                <p>Version history and changelog</p>
+            </div>
+            <div class="releases">
+                <div class="release">
+                    <div class="release-header">
+                        <span class="release-version">v0.2.0</span>
+                        <span class="release-date">April 2026</span>
+                        <span class="release-tag release-current">Current</span>
+                    </div>
+                    <div class="release-body">
+                        <div class="release-section">
+                            <h4>Added</h4>
+                            <ul>
+                                <li>Mortality table CSV loading with qx/px column detection</li>
+                                <li>Curtate life expectancy (Ex) calculations</li>
+                                <li>Whole life, term, deferred annuities (immediate & due)</li>
+                                <li>Net single premiums: whole life, term, endowment</li>
+                                <li>Policy reserves: net premium, gross premium, prospective, retrospective</li>
+                                <li>Monte Carlo GBM with deterministic seeding (PCG)</li>
+                                <li>Risk measures: VaR, CTE/Expected Shortfall, full risk reports</li>
+                                <li>Macaulay/modified duration and convexity</li>
+                                <li>Streaming JSON output writer</li>
+                                <li>Worker pool for parallel batch processing</li>
+                            </ul>
+                        </div>
+                        <div class="release-section">
+                            <h4>Improved</h4>
+                            <ul>
+                                <li>CSV parser: zero-allocation path with unsafe.String</li>
+                                <li>Quoted field handling with escaped quotes ("")</li>
+                                <li>Parallel chunking with overlap for line boundary detection</li>
+                                <li>Pre-computed discount table for O(1) lookups (terms 0–100)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="release">
+                    <div class="release-header">
+                        <span class="release-version">v0.1.0</span>
+                        <span class="release-date">March 2026</span>
+                    </div>
+                    <div class="release-body">
+                        <div class="release-section">
+                            <h4>Added</h4>
+                            <ul>
+                                <li>Core RateConverter with effective rate support</li>
+                                <li>v-star discount factor: v* = (1+j) × v</li>
+                                <li>Nominal ↔ effective rate conversions</li>
+                                <li>Force of interest calculations</li>
+                                <li>Annuity-certain (immediate & due)</li>
+                                <li>Parallel CSV streaming with chunked processing</li>
+                                <li>CensusRecord parsing from CSV</li>
+                                <li>CLI with read, montecarlo, and bench subcommands</li>
+                                <li>Present value calculation (standard and v-star)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="getting-started" class="section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Getting Started</h2>
+                <p>Up and running in under a minute</p>
+            </div>
+            <div class="getting-started-grid">
+                <div class="gs-card">
+                    <h3>Install</h3>
+                    <div class="code-block">
+                        <code>go get github.com/lubasinkal/v-star</code>
+                    </div>
+                </div>
+                <div class="gs-card">
+                    <h3>Quick CLI</h3>
+                    <div class="code-block">
+                        <code>go build ./cmd/v-star<br>./v-star -i 0.05 -j 0.02</code>
+                    </div>
+                </div>
+                <div class="gs-card">
+                    <h3>Library Usage</h3>
+                    <div class="code-block">
+                        <code>converter := rates.NewRateConverter(0.05)<br>pv := converter.PresentValue(100000, 20)<br>// pv = 37688.95</code>
+                    </div>
+                </div>
+                <div class="gs-card">
+                    <h3>Stream CSV</h3>
+                    <div class="code-block">
+                        <code>opts := reader.CSVOptions{Header: true}<br>totalPV, count := reader.StreamCSVWithPV(<br>&nbsp;&nbsp;"policies.csv", opts, converter.PresentValue<br>)</code>
+                    </div>
+                </div>
+            </div>
+            <div class="cta-section">
+                <h3>Ready to dive deeper?</h3>
+                <p>Explore the full documentation, examples, and API reference on GitHub.</p>
+                <div class="cta-actions">
+                    <a href="https://github.com/lubasinkal/v-star" class="btn btn-primary" target="_blank">View on GitHub</a>
+                    <a href="https://github.com/lubasinkal/v-star/tree/main/examples" class="btn btn-secondary" target="_blank">Browse Examples</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <span class="brand-symbol">v*</span>
+                    <p>High-performance actuarial engine for concurrent financial simulations.</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-col">
+                        <h4>Project</h4>
+                        <a href="#features">Features</a>
+                        <a href="#performance">Performance</a>
+                        <a href="#roadmap">Roadmap</a>
+                        <a href="#releases">Releases</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Resources</h4>
+                        <a href="https://github.com/lubasinkal/v-star" target="_blank">GitHub</a>
+                        <a href="https://github.com/lubasinkal/v-star/tree/main/examples" target="_blank">Examples</a>
+                        <a href="https://github.com/lubasinkal/v-star/blob/main/CONTRIBUTING.md" target="_blank">Contributing</a>
+                        <a href="https://github.com/lubasinkal/v-star/blob/main/LICENSE" target="_blank">License</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 v-star. MIT License. Built with Go.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="assets/main.js"></script>
+</body>
+</html>
