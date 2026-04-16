@@ -1,6 +1,7 @@
 package annuities
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -317,4 +318,24 @@ func TestLifeInsurance_EdgeCases(t *testing.T) {
 	if got := calc.WholeLifeNSP(30, 1000); got != 0 {
 		t.Errorf("WholeLifeNSP zero mortality = %v, want 0", got)
 	}
+}
+
+func ExampleAnnuityCalculator_TermImmediate() {
+	mort := zeroMortalityTable(120)
+	converter := rates.NewRateConverter(0.05)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	pv := calc.TermImmediate(30, 10, 1000)
+	fmt.Printf("%.2f\n", pv)
+	// Output: 7721.73
+}
+
+func ExampleAnnuityCalculator_WholeLifeImmediate() {
+	mort := zeroMortalityTable(120)
+	converter := rates.NewRateConverter(0.05)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	pv := calc.WholeLifeImmediate(65, 10000)
+	fmt.Printf("%.2f\n", pv)
+	// Output: 186334.72
 }

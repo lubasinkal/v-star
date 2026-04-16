@@ -1,6 +1,7 @@
 package rates
 
 import (
+	"fmt"
 	"math"
 	"testing"
 )
@@ -86,6 +87,33 @@ func TestDiscount(t *testing.T) {
 }
 
 var _ DiscountFactor = (*RateConverter)(nil)
+
+func ExampleRateConverter_PresentValue() {
+	converter := NewRateConverter(0.05)
+	pv := converter.PresentValue(100000, 20)
+	fmt.Printf("%.2f\n", pv)
+	// Output: 37688.95
+}
+
+func ExampleRateConverter_VStar() {
+	converter := NewRateConverter(0.05)
+	vStar := converter.VStar(0.02)
+	fmt.Printf("%.6f\n", vStar)
+	// Output: 0.971429
+}
+
+func ExampleAnnuityCertainImmediate() {
+	pv := AnnuityCertainImmediate(0.05, 20)
+	fmt.Printf("%.2f\n", pv)
+	// Output: 12.46
+}
+
+func ExampleMacaulayDuration() {
+	cashFlows := []float64{50, 50, 50, 50, 1050}
+	dur := MacaulayDuration(0.05, cashFlows)
+	fmt.Printf("%.2f\n", dur)
+	// Output: 4.55
+}
 
 // Benchmark tests for the "1 Billion Row Challenge" mindset
 func BenchmarkV(b *testing.B) {

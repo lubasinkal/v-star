@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For future plans, see [ROADMAP.md](./ROADMAP.md).
 
-## [Unreleased]
+## [0.3.0] - 2026-04-16
+
+### Added
+- Full godoc coverage for all public types and functions in pkg/
+- Runnable ExampleXXX functions for pkg.go.dev (rates, annuities, mortality, risk, stochastic)
+- Library Quickstart section in README.md with 5 copy-paste import examples
+
+### Changed
+- Updated README with "Why Go for Actuaries?" section targeting Python/R/Excel/VBA users
+- Fixed VaR calculation (now returns percentile directly, not inverse)
+- Improved readability of code examples in documentation
+
+### Fixed
+- VaR 95% now returns correct 95th percentile instead of 5th
 
 ## [0.2.0] - 2026-03-27
 
@@ -38,5 +51,5 @@ For future plans, see [ROADMAP.md](./ROADMAP.md).
 - JSON output support for integration with other tools
 - Comprehensive test suite with benchmarks
 
-[Unreleased]: https://github.com/lubasinkal/v-star/compare/v0.2.0...HEAD
+[0.3.0]: https://github.com/lubasinkal/v-star/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/lubasinkal/v-star/compare/v0.1.0...v0.2.0

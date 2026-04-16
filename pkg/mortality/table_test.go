@@ -1,6 +1,7 @@
 package mortality
 
 import (
+	"fmt"
 	"math"
 	"testing"
 )
@@ -143,4 +144,25 @@ func BenchmarkPx(b *testing.B) {
 			_ = table.Px(age, 20)
 		}
 	}
+}
+
+func ExampleTable_Qx() {
+	qx := []float64{0.001, 0.002, 0.005, 0.01, 0.02, 0.03}
+	table := NewTable("test", qx)
+
+	q := table.Qx(2)
+	fmt.Printf("%.4f\n", q)
+	// Output: 0.0050
+}
+
+func ExampleTable_Ex() {
+	qx := make([]float64, 121)
+	for i := range qx {
+		qx[i] = 0.001 * float64(i+1) // qx increases with age
+	}
+	table := NewTable("test", qx)
+
+	ex := table.Ex(60)
+	fmt.Printf("%.2f\n", ex)
+	// Output: 12.81
 }

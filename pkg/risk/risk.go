@@ -1,13 +1,12 @@
 package risk
 
 import (
-	"math"
 	"slices"
 )
 
 // VaR computes Value at Risk at the given confidence level.
 // Returns the loss threshold that is not exceeded with the specified probability.
-// For example, VaR(0.95) returns the 5th percentile of losses (95% confidence).
+// For example, VaR(0.95) returns the 95th percentile of losses (95% confidence).
 // losses should contain simulated portfolio losses (positive values represent losses).
 func VaR(losses []float64, confidence float64) float64 {
 	if len(losses) == 0 || confidence <= 0 || confidence >= 1 {
@@ -17,10 +16,7 @@ func VaR(losses []float64, confidence float64) float64 {
 	copy(sorted, losses)
 	slices.Sort(sorted)
 
-	idx := int(math.Round((1-confidence)*float64(len(sorted)))) - 1
-	if idx < 0 {
-		idx = 0
-	}
+	idx := int(confidence * float64(len(sorted)-1))
 	if idx >= len(sorted) {
 		idx = len(sorted) - 1
 	}

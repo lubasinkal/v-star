@@ -1,6 +1,7 @@
 package stochastic
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -87,4 +88,11 @@ func BenchmarkGeneratePaths(b *testing.B) {
 	for b.Loop() {
 		rg.GeneratePaths(1000, 10, 1.0)
 	}
+}
+
+func ExampleNewRateGeneratorWithSeed() {
+	rg := NewRateGeneratorWithSeed(0.05, 0.02, 0.15, 42)
+	path := rg.GeneratePath(5, 1.0)
+	fmt.Printf("%.2f%%\n", path[5]*100)
+	// Output: 3.82%
 }

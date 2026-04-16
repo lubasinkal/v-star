@@ -1,6 +1,7 @@
 package risk
 
 import (
+	"fmt"
 	"math"
 	"testing"
 )
@@ -31,22 +32,22 @@ func TestVaR_KnownValues(t *testing.T) {
 		losses[i] = float64(i + 1)
 	}
 
-	// VaR at 95% confidence = 5th percentile = index 4 = value 5
+	// VaR at 95% confidence = 95th percentile = index 94 = value 95
 	got := VaR(losses, 0.95)
-	if got != 5 {
-		t.Errorf("VaR(0.95) = %v, want 5", got)
+	if got != 95 {
+		t.Errorf("VaR(0.95) = %v, want 95", got)
 	}
 
-	// VaR at 99% confidence = 1st percentile = index 0 = value 1
+	// VaR at 99% confidence = 99th percentile = index 98 = value 99
 	got = VaR(losses, 0.99)
-	if got != 1 {
-		t.Errorf("VaR(0.99) = %v, want 1", got)
+	if got != 99 {
+		t.Errorf("VaR(0.99) = %v, want 99", got)
 	}
 
-	// VaR at 90% confidence = 10th percentile = index 9 = value 10
+	// VaR at 90% confidence = 90th percentile = index 89 = value 90
 	got = VaR(losses, 0.90)
-	if got != 10 {
-		t.Errorf("VaR(0.90) = %v, want 10", got)
+	if got != 90 {
+		t.Errorf("VaR(0.90) = %v, want 90", got)
 	}
 }
 
@@ -57,14 +58,14 @@ func TestCTE_KnownValues(t *testing.T) {
 		losses[i] = float64(i + 1)
 	}
 
-	// VaR(0.95) = index 0 = 1, all values >= 1, so CTE = mean = 5.5
+	// VaR(0.95) = 95th percentile = index 8 = 9, values >= 9: {9,10}, mean = 9.5
 	got := CTE(losses, 0.95)
-	expected := 5.5
+	expected := 9.5
 	if math.Abs(got-expected) > 1e-9 {
 		t.Errorf("CTE(0.95) = %v, want %v", got, expected)
 	}
 
-	// VaR(0.50) = index 4 = 5, values >= 5: {5,6,7,8,9,10}, mean = 7.5
+	// VaR(0.50) = 50th percentile = index 4 = 5, values >= 5: {5,6,7,8,9,10}, mean = 7.5
 	got = CTE(losses, 0.50)
 	expected = 7.5
 	if math.Abs(got-expected) > 1e-9 {
@@ -141,4 +142,18 @@ func BenchmarkComputeReport(b *testing.B) {
 	for b.Loop() {
 		ComputeReport(losses)
 	}
+}
+
+func ExampleVaR() {
+	losses := []float64{100, 200, 300, 400, 500, 600, 700, 800, 900, 1000}
+	var95 := VaR(losses, 0.95)
+	fmt.Printf("%.0f\n", var95)
+	// Output: 900
+}
+
+func ExampleComputeReport() {
+	losses := []float64{100, 200, 300, 400, 500, 600, 700, 800, 900, 1000}
+	report := ComputeReport(losses)
+	fmt.Printf("Mean: %.0f, VaR95: %.0f, CTE95: %.0f\n", report.Mean, report.VaR95, report.CTE95)
+	// Output: Mean: 550, VaR95: 900, CTE95: 950
 }
