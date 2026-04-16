@@ -1,32 +1,40 @@
 :root {
-    --bg-primary: #0a0a0f;
-    --bg-secondary: #12121a;
-    --bg-card: #1a1a25;
-    --bg-card-hover: #22222f;
-    --text-primary: #e8e8f0;
-    --text-secondary: #9898a8;
-    --text-muted: #68687a;
-    --accent: #6366f1;
-    --accent-light: #818cf8;
-    --accent-dark: #4f46e5;
-    --accent-glow: rgba(99, 102, 241, 0.15);
-    --border: #2a2a38;
-    --border-light: #3a3a4a;
-    --success: #22c55e;
-    --warning: #f59e0b;
-    --info: #3b82f6;
-    --gradient-hero: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-    --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.2);
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 16px;
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    /* 1. Visual Theme & Atmosphere */
+    --bg-primary: #07080a; /* Near-black blue-tinted background */
+    --bg-secondary: #101111; /* Surface 100 */
+    --bg-card: #1b1c1e; /* Card Surface */
+    --bg-card-hover: #222326;
+    --text-primary: #f9f9f9; /* Near White */
+    --text-secondary: #9c9c9d; /* Medium Gray */
+    --text-muted: #6a6b6c; /* Dim Gray */
+    --accent: #FF6363; /* Raycast Red as punctuation color */
+    --accent-transparent: hsla(0, 100%, 69%, 0.15); /* Red Transparent */
+    --blue-accent: hsl(202, 100%, 67%); /* Raycast Blue */
+    --blue-transparent: hsla(202, 100%, 67%, 0.15); /* Blue Transparent */
+    --border: hsl(195, 5%, 15%); /* Border */
+    --border-light: #2f3031; /* Dark Border */
+    --success: hsl(151, 59%, 59%); /* Success Green */
+    --warning: hsl(43, 100%, 60%); /* Warning Yellow */
+    --info: hsl(202, 100%, 67%); /* Info Blue */
+    --gradient-hero: linear-gradient(135deg, #FF6363 0%, #FF6363 100%); /* Raycast Red diagonal pattern */
+    --shadow-subtle: rgba(0, 0, 0, 0.28) 0px 1.189px 2.377px; /* Level 1 */
+    --shadow-ring: rgb(27, 28, 30) 0px 0px 0px 1px outer + rgb(7, 8, 10) 0px 0px 0px 1px inset; /* Level 2 */
+    --shadow-button: rgba(255, 255, 255, 0.05) 0px 1px 0px 0px inset + rgba(255, 255, 255, 0.25) 0px 0px 0px 1px + rgba(0, 0, 0, 0.2) 0px -1px 0px 0px inset; /* Level 3 */
+    --shadow-key: 5-layer shadow stack; /* Level 4 - complex */
+    --shadow-floating: rgba(0, 0, 0, 0.5) 0px 0px 0px 2px + rgba(255, 255, 255, 0.19) 0px 0px 14px + insets; /* Level 5 */
+    --shadow-glow: 0 0 40px rgba(255, 99, 99, 0.2); /* Red glow */
+    --shadow-blue-glow: rgba(0, 153, 255, 0.15) 0px 0px 14px; /* Blue info glow */
+    --shadow-red-glow: rgba(255, 99, 99, 0.15) 0px 0px 14px; /* Red danger glow */
+    --warm-glow: rgba(215, 201, 175, 0.05) 0px 0px 20px 5px; /* Warm glow */
+    --radius-sm: 4px; /* Keyboard keys, small interactive elements */
+    --radius-md: 6px; /* Buttons, badges, tags */
+    --radius-lg: 8px; /* Input fields, inline components */
+    --radius-pill: 86px; /* Pill buttons, nav CTAs */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'GeistMono', 'ui-monospace', 'SFMono-Regular', 'Roboto Mono', 'Menlo', 'Monaco', monospace;
 }
 
+/* Reset and base styles */
 *, *::before, *::after {
     margin: 0;
     padding: 0;
@@ -44,8 +52,13 @@ body {
     color: var(--text-primary);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    /* Apply OpenType features */
+    font-feature-settings: "calt" 1, "kern" 1, "liga" 1, "ss03" 1;
+    /* Positive letter-spacing for body text */
+    letter-spacing: 0.2px;
 }
 
+/* Container */
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -59,7 +72,7 @@ body {
     left: 0;
     right: 0;
     z-index: 1000;
-    background: rgba(10, 10, 15, 0.85);
+    background: rgba(7, 8, 10, 0.8); /* Slightly transparent near-black */
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
 }
@@ -86,6 +99,8 @@ body {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    /* Disable liga for hero headings as per spec */
+    font-feature-settings: "liga" 0, "ss02" 1, "ss08" 1;
 }
 
 .brand-name {
@@ -101,7 +116,7 @@ body {
 }
 
 .nav-links a {
-    color: var(--text-secondary);
+    color: var(--text-muted);
     text-decoration: none;
     font-size: 0.9rem;
     font-weight: 500;
@@ -113,16 +128,20 @@ body {
 }
 
 .nav-cta {
-    background: var(--accent);
-    color: white !important;
+    background: var(--accent-transparent);
+    color: var(--text-primary) !important;
     padding: 8px 20px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-pill);
     transition: background 0.2s, transform 0.2s !important;
+    /* Opacity transition for hover - Raycast signature */
+    opacity: 1;
 }
 
 .nav-cta:hover {
-    background: var(--accent-dark);
+    background: var(--accent);
+    color: var(--text-primary) !important;
     transform: translateY(-1px);
+    opacity: 0.6; /* Hover uses opacity transition */
 }
 
 .nav-toggle {
@@ -160,19 +179,22 @@ body {
 .hero-badge {
     display: inline-block;
     padding: 6px 16px;
-    background: var(--accent-glow);
+    background: var(--accent-transparent);
     border: 1px solid var(--border-light);
     border-radius: 100px;
     font-size: 0.85rem;
-    color: var(--accent-light);
+    color: var(--accent);
     margin-bottom: 24px;
 }
 
 .hero h1 {
     font-size: clamp(2.5rem, 6vw, 4.5rem);
-    font-weight: 800;
-    line-height: 1.1;
+    font-weight: 600; /* Weight 600 for display hero */
+    line-height: 1.10;
     margin-bottom: 20px;
+    letter-spacing: 0px; /* Display hero has 0px letter spacing */
+    /* OpenType: liga 0, ss02, ss08 */
+    font-feature-settings: "liga" 0, "ss02" 1, "ss08" 1;
 }
 
 .hero-symbol {
@@ -180,6 +202,7 @@ body {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    font-feature-settings: "liga" 0, "ss02" 1, "ss08" 1;
 }
 
 .hero-title {
@@ -191,6 +214,10 @@ body {
     color: var(--text-secondary);
     max-width: 600px;
     margin: 0 auto 36px;
+    /* Sub-heading: 20px, weight 500, line-height 1.6, letter-spacing 0.2px */
+    font-weight: 500;
+    line-height: 1.6;
+    letter-spacing: 0.2px;
 }
 
 .hero-actions {
@@ -204,36 +231,61 @@ body {
     display: inline-flex;
     align-items: center;
     padding: 12px 28px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     font-size: 0.95rem;
     font-weight: 600;
     text-decoration: none;
     transition: all 0.2s;
     cursor: pointer;
     border: none;
+    /* Opacity transition for hover */
+    opacity: 1;
 }
 
 .btn-primary {
-    background: var(--accent);
-    color: white;
-}
-
-.btn-primary:hover {
-    background: var(--accent-dark);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-glow);
-}
-
-.btn-secondary {
     background: var(--bg-card);
     color: var(--text-primary);
     border: 1px solid var(--border);
 }
 
-.btn-secondary:hover {
+.btn-primary:hover {
     background: var(--bg-card-hover);
-    border-color: var(--border-light);
     transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
+    opacity: 0.6; /* Hover uses opacity transition */
+}
+
+.btn-secondary {
+    /* Ghost Button: No background or border, gray text */
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    padding: 12px 28px;
+    border-radius: var(--radius-pill);
+    /* Inset shadow for ghost button */
+    box-shadow: rgba(255, 255, 255, 0.1) 0px 1px 0px 0px inset;
+}
+
+.btn-secondary:hover {
+    color: var(--text-primary);
+    background: var(--accent-transparent);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
+    opacity: 0.6; /* Hover uses opacity transition */
+}
+
+/* CTA (Download) button */
+.btn-cta {
+    background: var(--accent-transparent);
+    color: var(--text-primary);
+    border-radius: var(--radius-pill);
+}
+
+.btn-cta:hover {
+    background: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
+    opacity: 0.6; /* Hover uses opacity transition */
 }
 
 .hero-stats {
@@ -250,7 +302,7 @@ body {
     display: block;
     font-size: 2rem;
     font-weight: 700;
-    color: var(--accent-light);
+    color: var(--accent);
 }
 
 .stat-label {
@@ -265,7 +317,14 @@ body {
     transform: translateX(-50%);
     width: 800px;
     height: 800px;
-    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    /* Hero illustration: Diagonal stripe pattern in Raycast Red */
+    background: repeating-linear-gradient(
+        45deg,
+        hsla(0, 100%, 69%, 0.1),
+        hsla(0, 100%, 69%, 0.1) 10px,
+        transparent 10px,
+        transparent 20px
+    );
     pointer-events: none;
     z-index: 0;
 }
@@ -286,8 +345,12 @@ body {
 
 .section-header h2 {
     font-size: 2.2rem;
-    font-weight: 700;
+    font-weight: 400; /* Section Display: weight 400 */
+    line-height: 1.17;
     margin-bottom: 12px;
+    letter-spacing: 0.2px;
+    /* OpenType: calt, kern, liga, ss03 */
+    font-feature-settings: "calt" 1, "kern" 1, "liga" 1, "ss03" 1;
 }
 
 .section-header p {
@@ -305,15 +368,17 @@ body {
 .feature-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg); /* Standard cards: 12px */
     padding: 28px;
     transition: all 0.3s;
+    /* Standard Card ring shadow */
+    box-shadow: var(--shadow-ring);
 }
 
 .feature-card:hover {
     border-color: var(--accent);
     transform: translateY(-4px);
-    box-shadow: var(--shadow-glow);
+    box-shadow: var(--shadow-ring), var(--shadow-glow);
 }
 
 .feature-icon {
@@ -322,7 +387,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--accent-glow);
+    background: var(--accent-transparent);
     border-radius: var(--radius-sm);
     margin-bottom: 16px;
 }
@@ -330,18 +395,29 @@ body {
 .feature-icon svg {
     width: 24px;
     height: 24px;
-    color: var(--accent-light);
+    color: var(--accent);
 }
 
 .feature-card h3 {
     font-size: 1.15rem;
-    font-weight: 600;
+    font-weight: 400; /* Card Heading: weight 400 */
     margin-bottom: 8px;
+    /* Card Heading: 22px, line-height 1.15, letter-spacing 0px */
+    line-height: 1.15;
+    letter-spacing: 0px;
+    /* OpenType: calt, kern, liga, ss03 */
+    font-feature-settings: "calt" 1, "kern" 1, "liga" 1, "ss03" 1;
 }
 
 .feature-card p {
     color: var(--text-secondary);
     font-size: 0.9rem;
+    /* Body Tight: 16px, weight 400, line-height 1.15, letter-spacing 0.1px */
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: 0.1px;
+    /* OpenType: calt, kern, liga, ss03 */
+    font-feature-settings: "calt" 1, "kern" 1, "liga" 1, "ss03" 1;
 }
 
 /* Performance */
@@ -354,8 +430,9 @@ body {
 .perf-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     padding: 28px;
+    box-shadow: var(--shadow-ring);
 }
 
 .perf-card h3 {
@@ -405,20 +482,21 @@ body {
 .endpoint-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     padding: 24px;
     transition: all 0.2s ease;
+    box-shadow: var(--shadow-ring);
 }
 
 .endpoint-card:hover {
     border-color: var(--accent);
-    box-shadow: var(--shadow-glow);
+    box-shadow: var(--shadow-ring), var(--shadow-glow);
 }
 
 .endpoint-method {
     display: inline-block;
-    background: var(--accent);
-    color: white;
+    background: var(--accent-transparent);
+    color: var(--accent);
     padding: 4px 12px;
     border-radius: var(--radius-sm);
     font-size: 0.75rem;
@@ -445,6 +523,7 @@ body {
     padding: 16px;
     border-radius: var(--radius-sm);
     overflow-x: auto;
+    box-shadow: var(--shadow-ring);
 }
 
 .endpoint-card code {
@@ -458,7 +537,8 @@ body {
     text-align: center;
     padding: 24px;
     background: var(--bg-card);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-ring);
 }
 
 .api-cta p {
@@ -469,10 +549,11 @@ body {
     background: var(--bg-primary);
     padding: 4px 12px;
     border-radius: var(--radius-sm);
-    color: var(--accent-light);
+    color: var(--accent);
     font-family: var(--font-mono);
 }
 
+/* Benchmark bars */
 .benchmark-bars {
     display: flex;
     flex-direction: column;
@@ -507,7 +588,7 @@ body {
 
 .benchmark-value {
     font-size: 0.85rem;
-    color: var(--accent-light);
+    color: var(--accent);
     font-weight: 600;
     text-align: right;
 }
@@ -523,8 +604,9 @@ body {
 .roadmap-phase {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     overflow: hidden;
+    box-shadow: var(--shadow-ring);
 }
 
 .phase-header {
@@ -563,8 +645,8 @@ body {
 }
 
 .phase-current .phase-badge {
-    background: var(--accent-glow);
-    color: var(--accent-light);
+    background: var(--accent-transparent);
+    color: var(--accent);
 }
 
 .phase-planned {
@@ -619,8 +701,9 @@ body {
 .release {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     overflow: hidden;
+    box-shadow: var(--shadow-ring);
 }
 
 .release-header {
@@ -634,7 +717,7 @@ body {
 .release-version {
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--accent-light);
+    color: var(--accent);
 }
 
 .release-date {
@@ -651,8 +734,8 @@ body {
 }
 
 .release-current {
-    background: var(--accent-glow);
-    color: var(--accent-light);
+    background: var(--accent-transparent);
+    color: var(--accent);
 }
 
 .release-body {
@@ -707,8 +790,9 @@ body {
 .gs-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     padding: 24px;
+    box-shadow: var(--shadow-ring);
 }
 
 .gs-card h3 {
@@ -725,16 +809,17 @@ body {
     font-family: var(--font-mono);
     font-size: 0.85rem;
     line-height: 1.6;
-    color: var(--accent-light);
+    color: var(--accent);
     overflow-x: auto;
+    box-shadow: var(--shadow-ring);
 }
 
 .cta-section {
     text-align: center;
     padding: 60px 40px;
     background: var(--bg-card);
-    border: 1px solid var(--border);
     border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-ring);
 }
 
 .cta-section h3 {
@@ -808,7 +893,7 @@ body {
 }
 
 .footer-col a:hover {
-    color: var(--accent-light);
+    color: var(--accent);
 }
 
 .footer-bottom {
