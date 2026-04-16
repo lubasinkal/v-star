@@ -19,6 +19,7 @@
             </button>
             <ul class="nav-links">
                 <li><a href="#features">Features</a></li>
+                <li><a href="#api">API</a></li>
                 <li><a href="#performance">Performance</a></li>
                 <li><a href="#roadmap">Roadmap</a></li>
                 <li><a href="#releases">Releases</a></li>
@@ -130,6 +131,44 @@
                     <h3>Streaming I/O</h3>
                     <p>Zero-allocation CSV parsing with parallel processing. Streaming JSON output without buffering all records.</p>
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="api" class="section">
+        <div class="container">
+            <div class="section-header">
+                <h2>HTTP API</h2>
+                <p>Use v-star from Python, R, Excel, or any language with HTTP support</p>
+            </div>
+            <div class="api-endpoints">
+                <div class="endpoint-card">
+                    <div class="endpoint-method">POST</div>
+                    <div class="endpoint-path">/value</div>
+                    <p>Calculate present value for policy records</p>
+                    <pre><code>curl -X POST http://localhost:8080/value \
+  -H "Content-Type: application/json" \
+  -d '{"interest_rate": 0.05, "records": [{"sum_assured": 100000, "term": 20}]}'</code></pre>
+                </div>
+                <div class="endpoint-card">
+                    <div class="endpoint-method">POST</div>
+                    <div class="endpoint-path">/montecarlo</div>
+                    <p>Run Monte Carlo simulation with VaR/CTE</p>
+                    <pre><code>curl -X POST http://localhost:8080/montecarlo \
+  -H "Content-Type: application/json" \
+  -d '{"initial_rate": 0.05, "drift": 0.02, "volatility": 0.15, "num_paths": 10000}'</code></pre>
+                </div>
+                <div class="endpoint-card">
+                    <div class="endpoint-method">POST</div>
+                    <div class="endpoint-path">/convert-rate</div>
+                    <p>Convert between nominal and effective rates</p>
+                    <pre><code>curl -X POST http://localhost:8080/convert-rate \
+  -H "Content-Type: application/json" \
+  -d '{"from_rate": 0.05, "from_type": "effective", "compounding": 12}'</code></pre>
+                </div>
+            </div>
+            <div class="api-cta">
+                <p>Start the server: <code>v-star serve --port=8080</code></p>
             </div>
         </div>
     </section>
