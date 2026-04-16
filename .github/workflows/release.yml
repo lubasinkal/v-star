@@ -8,12 +8,10 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -22,7 +20,30 @@ jobs:
 
       - name: Build CLI
         run: |
-          go build -ldflags "-s -w" -o v-star ./cmd/v-star
+          VERSION=$(git describe --tags --always --dirty)
+          go build -ldflags "-s -w -X main.version=$VERSION" -o v-star ./cmd/v-star
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: v-star
+          path: v-star
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: v-star
+          path: .
+
+      - name: Make executable
+        run: chmod +x v-star
 
       - name: Run semantic-release
         uses: cycjimmy/semantic-release-action@v4
@@ -30,9 +51,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           branches: main
-          plugins: |
-            @semantic-release/commit-analyzer
-            @semantic-release/release-notes-generator
-            @semantic-release/github
-          extra_args: --publish
+          extra_args: |
+            --plugin @semantic-release/github
+            --github-asset v-star
           buildArtifacts: true
