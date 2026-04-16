@@ -1,8 +1,8 @@
 # v-star: The Actuarial Engine That Doesn't Suck
 
-**Your calculations just got 28 million times faster.**
+**Your calculations just got millions of times faster.**
 
-Ever tried to run a valuation on a million-policy census in Excel? Watched it freeze, crash, or take 20 minutes? That's the problem v-star solves. Built in Go (yes, that fast language), v-star chews through massive datasets in milliseconds while your coffee is still hot.
+Ever tried to run a valuation on a million policy census data in Excel even running reserving formulas? Watched it freeze, crash, or take hours? That's the problem v-star solves. Built in Go (yes, an actually fast language compared to R, Python or VBA), v-star handles massive datasets and calculations in milliseconds while your coffee is still hot.
 
 ![CI](https://github.com/lubasinkal/v-star/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -11,16 +11,17 @@ Ever tried to run a valuation on a million-policy census in Excel? Watched it fr
 
 ## The Story
 
-I'm an actuary student who got tired of:
+I'm an actuarial science graduate who got tired of:
 
 - Excel crashing on big files
 - VBA scripts that nobody understands
-- Python/Pandas that felt slow
-- Black-box libraries where you can't see the math
+- Python code that felt slow (still better than VBA)
+- Propietary tools and libraries where you can't see the math
+- Waiting to get accepted for a job
 
-So I built v-star. Zero dependencies. All the actuarial stuff you'd need. Fast enough to make your laptop look like a supercomputer.
+So I built v-star. Zero dependencies. All the actuarial stuff a gradute would think you'd need. Fast enough to make your laptop feel like a supercomputer.
 
-The name? Comes from the actuarial joke: if premiums compound at rate j but you're discounting at i, the discount factor is **v* = (1+j) × v**. The star marks the difference. 🎯
+Why call it **v-star ?** Comes from a joke we had in class: if premiums compound at rate j but you're discounting at i, the new discount factor is **v*** = (1+j) × v. The star marks the difference. 🎯
 
 ---
 
@@ -78,7 +79,7 @@ The formulas are exactly the same. Just faster, auditable, and you can actually 
 
 ---
 
-## For Developers
+## For Developers, Programmers, Hobbyists
 
 ```go
 // Present value — 28M calculations per second
@@ -136,7 +137,7 @@ go run ./examples/monte_carlo_risk       # Monte Carlo + VaR
 go run ./examples/csv_valuation           # Big CSV processing
 ```
 
-Python users: check out `examples/python_bridge/` for the Jupyter notebook demo.
+Python users: check out `examples/python_bridge/` for the Jupyter notebook demo. If you don see it then sorry I'll work on it.
 
 ---
 
