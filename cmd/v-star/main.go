@@ -39,6 +39,8 @@ func main() {
 			commands.MonteCarlo(args, *interest)
 		case "bench":
 			commands.Bench()
+		case "serve":
+			commands.Serve(args)
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n\n", args[0])
 			printHelp()
@@ -64,6 +66,7 @@ func printHelp() {
 	fmt.Println("  read <file.csv>    Read CSV and calculate valuations")
 	fmt.Println("  montecarlo         Generate Monte Carlo interest rate paths")
 	fmt.Println("  bench              Run performance benchmark suite")
+	fmt.Println("  serve              Start HTTP API server")
 	fmt.Println("  (default)          Calculate discount factors")
 	fmt.Println()
 	fmt.Println("Flags:")
@@ -75,5 +78,6 @@ func printHelp() {
 	fmt.Println("  v-star read policies.csv --output=json")
 	fmt.Println("  v-star montecarlo --paths=100000 --steps=10 --seed=42")
 	fmt.Println("  v-star bench")
+	fmt.Println("  v-star serve --port=8080")
 	fmt.Println("  v-star --version")
 }
