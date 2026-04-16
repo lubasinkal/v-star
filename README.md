@@ -1,885 +1,131 @@
-# v-star (v*)
+# v-star
 
-**A high-performance, zero-dependency actuarial engine for Concurrent Financial Simulations built in Go.**
+**Fast actuarial calculations in your pocket.**
 
-[![CI](https://github.com/lubasinkal/v-star/actions/workflows/ci.yml/badge.svg)](https://github.com/lubasinkal/v-star/actions/workflows/ci.yml)
-[![Go Version](https://img.shields.io/badge/Go-1.26-blue)](https://golang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+v-star is a lightning-fast actuarial engine that processes millions of policy records in seconds. Whether you're an actuary, analyst, or developer — if you need present values, reserves, or risk metrics, v-star delivers.
 
-## The Origin
-
-The name **v-star** comes from a class joke between my University lecturer and comrades (brothers and sister deployed to study Actuarial Science): 
-If an annuity (or more precisely, the payments/premiums associated with the annuity) compound (or earn interest) at rate j while being discounted (valued) at rate i, then the adjusted (effective) discount factor is:
-
-```
-v* = (1+j) * v
-```
+![CI](https://github.com/lubasinkal/v-star/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Why v-star?
 
-Modern financial software is often bloated and slow. **v-star** is designed for:
+| Problem | v-star Solution |
+|---------|-----------------|
+| Excel crashes on 1M+ rows | Handles 10M+ rows without blinking |
+| Python/Pandas slow for big CSVs | 28M rows/sec — ~1.5x faster than Polars |
+| VBA scripts are a mess | Clean, auditable Go code you can actually read |
+| Black-box libraries | Every formula visible in the source |
 
-- **Zero Dependencies:** Uses only the Go Standard Library
-- **Extreme Speed:** 28M+ rows/sec CSV parsing, parallel processing
-- **Low Memory:** Streaming chunked processing, no full DataFrame in memory
-- **Auditability:** Pure, readable math implementations
-- **Flexibility:** Generic CSV parsing + specialized actuarial models
-- **Open Source:** MIT Licensed, community-driven
+**Zero dependencies.** No pip installs, no version conflicts. Just Go.
 
-## Features
+## What Can It Do?
 
-| Feature | Description | Performance |
-|---------|-------------|-------------|
-| **Generic CSV Parser** | Stream any CSV format | ~2.5M rows/sec |
-| **Parallel CSV Parser** | Multi-core CSV processing | ~28M rows/sec |
-| **Actuarial CSV Parser** | Direct CensusRecord parsing | ~28M rows/sec |
-| **Present Value** | Standard & v* discount factors | ~28M calcs/sec |
-| **Annuities** | Whole life, term, deferred (immediate & due) | |
-| **Life Insurance NSP** | Whole life, term, endowment net single premium | |
-| **Reserves** | Net premium, gross premium, prospective, retrospective | |
-| **Rate Conversions** | Nominal↔effective, force of interest, duration/convexity | |
-| **Monte Carlo** | GBM interest rate paths with percentiles | ~100k paths/sec |
-| **Risk Measures** | VaR, CTE/Expected Shortfall, full risk reports | ~100k calcs/sec |
-| **Bond Pricing** | Duration, convexity, Macaulay/modified duration | |
+- **Present Value** — Standard and v* discount factors (the v-star stuff from actuarial exams)
+- **Annuities** — Whole life, term, deferred — with real mortality tables
+- **Reserves** — Net premium, gross premium, prospective, retrospective
+- **Monte Carlo** — 100k+ interest rate paths in under a second
+- **Risk Measures** — VaR, CTE (Expected Shortfall) — the stuff risk managers actually need
+- **Big CSV Processing** — Stream millions of rows without loading everything into RAM
 
-## Quick Start
+## Quick Comparison
 
-### Installation
+| Tool | 10M Rows (PV calc) | Memory |
+|------|-------------------|--------|
+| **v-star** | 347ms | 349 MB → 0.2 MB |
+| Polars | 535ms | ~500 MB |
+| Pandas | ~30s | >2 GB |
 
-```bash
-go get github.com/lubasinkal/v-star
+v-star is **~1.5x faster** than Polars with **30% less memory**. And it's zero-dependency Go.
+
+## For Actuarial Folks
+
+You already know the math. Here's how v-star maps to what you do every day:
+
+```
+Excel: =PV(0.05, 20, 0, -100000)
+v-star: converter.PresentValue(100000, 20)  // → 37688.95
+
+Excel: NPV + mortality tables (messy)
+v-star: ann.WholeLifeImmediate(65, 1000)   // clean, one line
+
+Excel: 50-line VBA for reserves
+v-star: reserves.NetPremiumReserve(policy, converter, mort)  // 1 line
 ```
 
-### Run Examples
-
-```bash
-# Quickstart: present values and duration
-go run ./examples/quickstart
-
-# Monte Carlo + VaR/CTE risk analysis
-go run ./examples/monte_carlo_risk
-
-# CSV streaming with valuation
-go run ./examples/csv_valuation
-
-# Python + matplotlib demo (requires Jupyter)
-cd examples/python_bridge && jupyter notebook demo.ipynb
-```
-
-### Library Usage
+## For Developers
 
 ```go
-package main
-
-import (
-    "fmt"
-    "github.com/lubasinkal/v-star/pkg/reader"
-    "github.com/lubasinkal/v-star/pkg/rates"
-)
-
-func main() {
-    // Create rate converter
-    converter := rates.NewRateConverter(0.05)
-
-    // Calculate present value
-    pv := converter.PresentValue(100000, 20)
-    fmt.Printf("PV: %.2f\n", pv)
-
-    // Force of interest and rate conversions
-    delta := rates.ForceOfInterest(0.05)
-    fmt.Printf("Force of interest: %.6f\n", delta)
-
-    // Annuity-certain
-    a := rates.AnnuityCertainImmediate(0.05, 20)
-    fmt.Printf("Annuity-certain: %.2f\n", a)
-
-    // Stream CSV with parallel processing
-    opts := reader.CSVOptions{Header: true}
-    totalPV, count := reader.StreamCSVWithPV("policies.csv", opts, converter.PresentValue)
-    fmt.Printf("Total PV: %.2f from %d records\n", totalPV, count)
-}
-```
-
-## Library Quickstart
-
-Five-minute introduction for Python/R/Excel/VBA users.
-
-### 1. Present Value
-
-```go
-converter := rates.NewRateConverter(0.05) // 5% interest
-pv := converter.PresentValue(100000, 20)  // $100k in 20 years
-// Result: 37688.95
-```
-
-**In Excel:** `=PV(0.05,20,0,-100000)` — Same math, Go version is 28M calculations/second.
-
-### 2. Annuity (Payments While Alive)
-
-```go
+// Present value — 28M calculations per second
 converter := rates.NewRateConverter(0.05)
-mort := mortality.NewTable("test", qxData)
-calc := annuities.NewAnnuityCalculator(converter, mort)
+pv := converter.PresentValue(100000, 20)
 
-// $1000/year for life, starting at age 65
-pv := calc.WholeLifeImmediate(65, 1000)
-```
+// Annuity with mortality
+mort, _ := mortality.LoadCSV("mortality.csv")
+ann := annuities.NewAnnuityCalculator(converter, mort)
+pv = ann.WholeLifeImmediate(65, 1000)
 
-**In Excel:** Use `PMT` + mortality tables. Go gives you both in one line.
-
-### 3. Policy Reserves
-
-```go
-policy := reserves.PolicySpec{
-    Age:        30,
-    Term:       20,
-    SumAssured: 100000,
-    Premium:    500,
-}
-reserve := reserves.NetPremiumReserve(policy, converter, mort)
-```
-
-**In VBA:** This takes 50+ lines. Go: 15 lines, reusable.
-
-### 4. Monte Carlo + VaR
-
-```go
+// Monte Carlo + VaR — 100k paths in <1 second
 rg := stochastic.NewRateGeneratorWithSeed(0.05, 0.02, 0.15, 42)
-paths := rg.GeneratePaths(100000, 10, 1.0) // 100k scenarios
-
-losses := calculateLosses(paths) // your business logic
+paths := rg.GeneratePaths(100000, 10, 1.0)
 report := risk.ComputeReport(losses)
-fmt.Printf("VaR 95%%: %.2f\n", report.VaR95)
-```
 
-**In R/Python:** Same result, slower. Go runs 100k paths in <1 second.
-
-### 5. Streaming CSV (1M+ rows)
-
-```go
+// Stream a million-row CSV without loading into memory
 opts := reader.CSVOptions{Header: true}
 totalPV, count := reader.StreamCSVWithPV("policies.csv", opts, converter.PresentValue)
-// Processes millions of rows without loading into memory
 ```
 
-**In Python/Pandas:** `df.apply()` loads everything into RAM first. Go streams.
+## For Everyone Else
 
-### Why Go for Actuaries?
-
-- **Speed:** 28M rows/sec vs Python's ~500k/sec
-- **Zero deps:** No pip install issues, no version conflicts
-- **Auditable:** Every formula readable in the source
-- **Excel-friendly:** Use CLI or call from other languages via HTTP (coming in v0.4.0)
-
-### CLI Usage
+No code? No problem. Use the CLI:
 
 ```bash
 # Build
 go build -o v-star ./cmd/v-star
 
-# Show version
-./v-star --version
-
 # Calculate discount factors
 ./v-star -i 0.05 -j 0.02
 
-# Read CSV and calculate valuations
+# Process a policy CSV
 ./v-star read policies.csv --benchmark
 
-# Export as JSON
-./v-star read policies.csv --output=json
-
-# Monte Carlo simulation with percentiles
-./v-star montecarlo --paths=100000 --steps=10 --drift=0.02 --volatility=0.15
+# Run Monte Carlo simulation
+./v-star montecarlo --paths=100000 --steps=10
 ```
 
-## CSV Streaming API
-
-### Generic CSV Streaming
-
-```go
-// Stream any CSV format - returns []string per row
-opts := reader.CSVOptions{Header: true, Limit: 1000000}
-err := reader.StreamCSV("data.csv", opts, func(fields []string) {
-    fmt.Println(fields)
-})
-```
-
-### Parallel Generic Streaming
-
-```go
-// Zero-allocation parallel streaming with raw bytes
-opts := reader.CSVOptions{Header: true}
-err := reader.StreamCSVRaw("data.csv", opts, func(fields [][]byte) {
-    // process raw bytes without string allocation
-})
-```
-
-### Actuarial CSV Streaming
-
-```go
-// Direct CensusRecord parsing - fastest path
-opts := reader.CSVOptions{Header: true}
-err := reader.StreamCensus("policies.csv", opts, func(record reader.CensusRecord) {
-    fmt.Printf("Age: %d, Sum: %.2f\n", record.Age, record.SumAssured)
-})
-```
-
-### Parallel PV Calculation
-
-```go
-// Read + Calculate PV in one pass
-converter := rates.NewRateConverter(0.05)
-opts := reader.CSVOptions{Header: true}
-totalPV, count := reader.StreamCSVWithPV("policies.csv", opts, converter.PresentValue)
-```
-
-## Performance Benchmarks
-
-Tested on 10M row CSV (~288MB), 8-core Intel, Windows 11.
-
-### Throughput
-
-| Operation | Throughput | Duration |
-|-----------|-----------|----------|
-| CensusRecord Streaming + PV | 28.8M rows/sec | 347ms |
-| Monte Carlo (100k paths) | ~100k paths/sec | 1.0s |
-
-### v-star vs Polars (10M rows, PV calculation)
-
-| Metric | v-star (Go) | Polars 1.39 (Rust→Python) |
-|--------|------------|---------------------------|
-| Duration | 347ms | 535ms |
-| Throughput | 28.8M rows/sec | 18.7M rows/sec |
-| Peak RSS | 349 MB | ~500 MB |
-| After processing | 0.2 MB (GC'd) | ~426 MB (DataFrame alive) |
-| PV output | 1,332,144,325,593.69 | 1,332,144,325,593.69 |
-
-v-star is **~1.5x faster** with **~30% less memory** than Polars on this workload. Both produce identical results.
-
-### Additional CLI Commands
+## Installation
 
 ```bash
-# Read CSV with mortality table for annuity valuations
-./v-star read policies.csv --table=mortality.csv --interest=0.05
-
-# Run performance benchmarks
-./v-star bench
+go get github.com/lubasinkal/v-star
 ```
 
-#### CLI Flags Reference
+Or grab the latest release from GitHub — single binary, runs anywhere.
 
-**Global flags:**
+## Run Examples
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `-i` | float64 | `0.05` | Effective annual interest rate |
-| `-j` | float64 | `0.02` | Compounding growth rate for v* |
-| `--version` | bool | `false` | Show version number |
+```bash
+go run ./examples/quickstart              # PV and duration
+go run ./examples/monte_carlo_risk       # Monte Carlo + VaR
+go run ./examples/csv_valuation           # Big CSV processing
 
-**`read` subcommand:**
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--benchmark` | bool | `false` | Show timing and throughput |
-| `--limit` | int | `0` | Max rows to process (0 = all) |
-| `--header` | string | `true` | CSV has header row: `true` or `false` |
-| `--output` | string | `console` | Output format: `console` or `json` |
-| `--interest` | float64 | `0.05` | Override global interest rate |
-| `--table` | string | `""` | Mortality table CSV for annuity calculations |
-
-**`montecarlo` subcommand:**
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--paths` | int | `100000` | Number of simulation paths |
-| `--steps` | int | `10` | Time steps per path |
-| `--drift` | float64 | `0.02` | Drift parameter (mu) |
-| `--volatility` | float64 | `0.15` | Volatility (sigma) |
-| `--seed` | int | `-1` | Deterministic seed (-1 = random) |
-
-## Architecture
-
-```
-cmd/
-├── v-star/
-│   ├── main.go              # Entry point, flag parsing
-│   └── commands/
-│       ├── read.go           # CSV read command
-│       ├── montecarlo.go     # Monte Carlo command
-│       └── bench.go          # Benchmark command
-└── generate/
-    └── main.go               # Test data generator
-
-pkg/
-├── reader/                   # CSV parsing and streaming
-│   ├── models.go             # CensusRecord struct
-│   ├── csv.go                # Generic CSV parser
-│   ├── census.go             # CensusRecord parser, ColumnMap
-│   └── streaming.go          # Parallel chunked streaming
-├── rates/                    # Interest rate calculations
-│   └── rates.go              # RateConverter, DiscountFactor interface
-├── mortality/                # Mortality tables
-│   └── table.go              # Table, MortalityTable interface
-├── annuities/                # Annuity calculations
-│   └── annuity.go            # AnnuityCalculator, deferred annuities
-├── reserves/                 # Policy reserves
-│   └── reserve.go            # Net/gross/prospective/retrospective reserves
-├── stochastic/               # Monte Carlo simulations
-│   └── rates.go              # RateGenerator, GBM paths
-├── risk/                     # Risk measures
-│   └── risk.go               # VaR, CTE, Expected Shortfall
-├── writer/                   # JSON output
-│   └── json.go               # JSONWriter, streaming JSON
-└── concurrency/              # Parallel processing
-    └── worker_pool.go        # WorkerPool, ProcessBatch
+# Python users: Jupyter notebook demo
+cd examples/python_bridge && jupyter notebook demo.ipynb
 ```
 
-## API Reference
+## Who's It For?
 
-### rates
+- **Actuaries** tired of slow Excel/VBA
+- **Analysts** who need to process big census files fast
+- **Developers** building insurance/risk systems
+- **Students** learning actuarial science (the code is readable!)
 
-Interest rate calculations, discount factors, and the v-star adjustment.
+## Roadmap
 
-#### Types
+- v0.4.0 — HTTP API (call v-star from Python, R, Excel, anywhere)
+- v1.0.0 — Locked API, production-ready
+- v1.1.0 — Markov models, credibility theory
 
-```go
-// DiscountFactor is the interface for discount factor calculations.
-type DiscountFactor interface {
-    Discount(term int) float64
-}
-
-// RateConverter performs interest rate conversions and present value calculations.
-// Pre-computes a discount table for terms 0-100 for fast lookups.
-type RateConverter struct {
-    EffectiveRate float64
-}
-```
-
-#### Functions
-
-```go
-// NewRateConverter creates a RateConverter for the given effective annual rate.
-// Pre-computes discount factors for terms 0 through 100.
-converter := rates.NewRateConverter(0.05)
-
-// NominalToEffective converts a nominal rate compounded m times per period
-// to an effective annual rate.
-// Formula: i = (1 + im/m)^m - 1
-effective := rates.NominalToEffective(0.048, 12) // 4.8% nominal, monthly
-
-// EffectiveToNominal converts effective to nominal rate
-nominal := rates.EffectiveToNominal(0.05, 12)
-
-// Force of interest: delta = ln(1+i)
-delta := rates.ForceOfInterest(0.05)
-
-// Interest from force: i = e^delta - 1
-i := rates.InterestFromForce(delta)
-
-// Annuity-certain: a_angle_n = (1 - v^n) / i
-a := rates.AnnuityCertainImmediate(0.05, 20)
-
-// Annuity-certain-due: adbl_angle_n = (1 - v^n) / d
-adue := rates.AnnuityCertainDue(0.05, 20)
-
-// Duration and convexity for a cash flow stream
-cashFlows := []float64{100, 100, 100, 100, 1100} // bond coupons + principal
-macDur := rates.MacaulayDuration(0.05, cashFlows)
-modDur := rates.ModifiedDuration(0.05, cashFlows)
-conv := rates.Convexity(0.05, cashFlows)
-```
-
-#### Methods
-
-| Signature | Description |
-|-----------|-------------|
-| `V() float64` | One-period discount factor: v = 1/(1+i) |
-| `VStar(j float64) float64` | v-star factor: v* = (1+j) * v |
-| `Discount(term int) float64` | v^term; uses pre-computed table for terms 0-100 |
-| `PresentValue(sumAssured float64, term int) float64` | sumAssured * v^term |
-| `PresentValueStar(sumAssured float64, term int, j float64) float64` | sumAssured * (v*)^term |
-
-```go
-converter := rates.NewRateConverter(0.05)
-
-v := converter.V()                           // 0.952381
-vStar := converter.VStar(0.02)               // 0.971429
-pv := converter.PresentValue(100000, 20)     // 37688.95
-pvStar := converter.PresentValueStar(100000, 20, 0.02) // 42210.83
-
-// DiscountFactor interface usage
-var df rates.DiscountFactor = converter
-d := df.Discount(10) // v^10
-```
-
----
-
-### mortality
-
-Mortality tables with survival probability calculations.
-
-#### Types
-
-```go
-// MortalityTable defines the interface for mortality data access.
-type MortalityTable interface {
-    Qx(age int) float64       // Probability of death within one year
-    Px(age int, term int) float64 // Cumulative survival probability
-    MaxAge() int              // Maximum age in table
-}
-
-// Table implements MortalityTable. Also has Name() and Lx() methods.
-type Table struct { /* unexported fields */ }
-```
-
-#### Functions
-
-```go
-// NewTable constructs a Table from a slice of qx values.
-// Computes lx internally using radix 100000.
-qx := []float64{0.001, 0.0012, 0.0015, ...}
-table := mortality.NewTable("CSO-80", qx)
-
-// LoadCSV loads a mortality table from CSV.
-// Supports both qx and px columns.
-table, err := mortality.LoadCSV("mortality.csv")
-
-// StreamCSV streams mortality data row by row.
-err := mortality.StreamCSV("mortality.csv", func(age int, qx float64) {
-    fmt.Printf("Age %d: qx=%.6f\n", age, qx)
-})
-```
-
-#### Methods
-
-| Signature | Description |
-|-----------|-------------|
-| `Qx(age int) float64` | Probability of death between age x and x+1 |
-| `Px(age int, term int) float64` | Cumulative survival: Px(age, term) = product of (1 - Qx) |
-| `Ex(age int) float64` | Curtate expectation of life: sum of Px(age, t) for t >= 1 |
-| `MaxAge() int` | Maximum age defined in the table |
-| `Name() string` | Table name (on concrete *Table type) |
-| `Lx(age int) float64` | Number of lives surviving to age from radix 100000 (on concrete *Table type) |
-
-```go
-table, _ := mortality.LoadCSV("mortality.csv")
-
-qx := table.Qx(30)              // 0.000812
-px := table.Px(30, 20)          // 20-year survival from age 30
-ex := table.Ex(65)              // Life expectancy at 65
-fmt.Printf("%s: max age = %d\n", table.Name(), table.MaxAge())
-```
-
----
-
-### annuities
-
-Whole life, term, and deferred annuity calculations.
-
-#### Types
-
-```go
-// AnnuityCalculator computes annuity values using a discount factor and mortality table.
-type AnnuityCalculator struct { /* unexported fields */ }
-```
-
-#### Functions
-
-```go
-// NewAnnuityCalculator creates an AnnuityCalculator from a DiscountFactor and MortalityTable.
-converter := rates.NewRateConverter(0.05)
-table, _ := mortality.LoadCSV("mortality.csv")
-ann := annuities.NewAnnuityCalculator(converter, table)
-
-// ApproxWholeLifeImmediate computes an approximate whole life immediate
-// annuity using a direct interest rate (no RateConverter needed).
-value := annuities.ApproxWholeLifeImmediate(65, 30, 1000, 0.05, table)
-```
-
-#### Methods
-
-| Signature | Description |
-|-----------|-------------|
-| `WholeLifeImmediate(age int, amount float64) float64` | Whole life annuity-immediate; payments at end of each period |
-| `WholeLifeDue(age int, amount float64) float64` | Whole life annuity-due; payments at start of each period |
-| `TermImmediate(age int, term int, amount float64) float64` | Term annuity-immediate over specified years |
-| `TermDue(age int, term int, amount float64) float64` | Term annuity-due over specified years |
-| `DeferredWholeLife(age int, deferment int, amount float64) float64` | Deferred whole life annuity; payments start after deferment years |
-| `DeferredTerm(age int, deferment int, term int, amount float64) float64` | Deferred term annuity |
-| `WholeLifeNSP(age int, sumAssured float64) float64` | Net single premium for whole life insurance (A_x) |
-| `TermNSP(age int, term int, sumAssured float64) float64` | Net single premium for term insurance (A^1_{x:n}) |
-| `EndowmentNSP(age int, term int, sumAssured float64) float64` | Net single premium for endowment (A_{x:n}) |
-
-```go
-converter := rates.NewRateConverter(0.05)
-table, _ := mortality.LoadCSV("mortality.csv")
-ann := annuities.NewAnnuityCalculator(converter, table)
-
-// Whole life annuity of 1000/year starting at age 65
-wl := ann.WholeLifeImmediate(65, 1000)
-
-// 20-year term annuity-due of 1000/year at age 40
-term := ann.TermDue(40, 20, 1000)
-
-// Deferred whole life: defer 10 years, then pay 1000/year
-deferred := ann.DeferredWholeLife(50, 10, 1000)
-
-// Life insurance net single premiums
-ax := ann.WholeLifeNSP(30, 100000)       // Whole life: A_30
-aterm := ann.TermNSP(30, 20, 100000)     // 20-year term: A^1_{30:20}
-aend := ann.EndowmentNSP(30, 20, 100000) // 20-year endowment: A_{30:20}
-```
-
----
-
-### reserves
-
-Policy reserve calculations using prospective and retrospective methods.
-
-#### Types
-
-```go
-// PolicySpec defines the parameters for a policy.
-type PolicySpec struct {
-    Age        int
-    Term       int
-    SumAssured float64
-    Premium    float64
-}
-```
-
-#### Functions
-
-| Signature | Description |
-|-----------|-------------|
-| `NetPremiumReserve(policy PolicySpec, discount DiscountFactor, mort MortalityTable) float64` | Net premium reserve using prospective method |
-| `GrossPremiumReserve(policy PolicySpec, expenses float64, discount DiscountFactor, mort MortalityTable) float64` | Gross premium reserve (NPR + expense reserve) |
-| `ProspectiveReserve(policy PolicySpec, discount DiscountFactor, mort MortalityTable) float64` | Future benefits minus future premiums |
-| `RetrospectiveReserve(policy PolicySpec, discount DiscountFactor, mort MortalityTable) float64` | Accumulated premiums minus past claims |
-
-```go
-converter := rates.NewRateConverter(0.05)
-table, _ := mortality.LoadCSV("mortality.csv")
-
-policy := reserves.PolicySpec{
-    Age:        30,
-    Term:       20,
-    SumAssured: 100000,
-    Premium:    500,
-}
-
-npr := reserves.NetPremiumReserve(policy, converter, table)
-gpr := reserves.GrossPremiumReserve(policy, 50, converter, table)
-
-prosp := reserves.ProspectiveReserve(policy, converter, table)
-retro := reserves.RetrospectiveReserve(policy, converter, table)
-```
-
----
-
-### stochastic
-
-Monte Carlo interest rate simulations using geometric Brownian motion.
-
-#### Types
-
-```go
-// RatePath is a sequence of simulated interest rates over time.
-type RatePath []float64
-
-// RateGenerator produces stochastic interest rate paths via GBM.
-// Uses Box-Muller transform for normal variates.
-type RateGenerator struct { /* unexported fields */ }
-```
-
-#### Functions
-
-```go
-// NewRateGenerator creates a generator with a random (PCG-based) seed.
-rg := stochastic.NewRateGenerator(0.05, 0.02, 0.15)
-
-// NewRateGeneratorWithSeed creates a generator with a deterministic seed
-// for reproducible simulations.
-rg := stochastic.NewRateGeneratorWithSeed(0.05, 0.02, 0.15, 42)
-```
-
-#### Methods
-
-| Signature | Description |
-|-----------|-------------|
-| `GeneratePath(steps int, dt float64) RatePath` | Single GBM path: S(t+1) = S(t) * exp((mu - 0.5*sigma^2)*dt + sigma*sqrt(dt)*Z) |
-| `GeneratePaths(numPaths, steps int, dt float64) []RatePath` | Multiple paths sequentially |
-
-```go
-rg := stochastic.NewRateGenerator(0.05, 0.02, 0.15)
-
-// Single path: 10 steps, dt=1.0 (annual)
-path := rg.GeneratePath(10, 1.0)
-for t, rate := range path {
-    fmt.Printf("t=%d: rate=%.6f\n", t, rate)
-}
-
-// 100000 paths for Monte Carlo aggregation
-paths := rg.GeneratePaths(100000, 10, 1.0)
-```
-
----
-
-### risk
-
-Risk measures for quantifying financial uncertainty from Monte Carlo simulations.
-
-#### Types
-
-```go
-// RiskReport contains comprehensive risk metrics from a simulation.
-type RiskReport struct {
-    Mean   float64
-    StdDev float64
-    Min    float64
-    Max    float64
-    VaR95  float64
-    VaR99  float64
-    CTE95  float64
-    CTE99  float64
-}
-```
-
-#### Functions
-
-| Signature | Description |
-|-----------|-------------|
-| `VaR(losses []float64, confidence float64) float64` | Value at Risk at given confidence level |
-| `CTE(losses []float64, confidence float64) float64` | Conditional Tail Expectation (Expected Shortfall) |
-| `ExpectedShortfall(losses []float64, confidence float64) float64` | Alias for CTE |
-| `ComputeReport(losses []float64) RiskReport` | Full risk report with VaR and CTE at multiple levels |
-
-```go
-// Simulate losses from interest rate scenarios
-rg := stochastic.NewRateGeneratorWithSeed(0.05, 0.02, 0.15, 42)
-paths := rg.GeneratePaths(100000, 10, 1.0)
-
-losses := make([]float64, len(paths))
-notional := 1000000.0
-for i, path := range paths {
-    loss := math.Max(0, 0.05 - path[10]) * notional
-    losses[i] = loss
-}
-
-// Compute risk metrics
-report := risk.ComputeReport(losses)
-fmt.Printf("VaR 95%%: $%.2f\n", report.VaR95)
-fmt.Printf("CTE 95%%: $%.2f\n", report.CTE95)
-
-// Or use individual functions
-var95 := risk.VaR(losses, 0.95)
-cte95 := risk.CTE(losses, 0.95)
-```
-
----
-
-### reader
-
-CSV streaming and parsing with parallel processing support.
-
-#### Types
-
-```go
-// CensusRecord represents a policy record with core actuarial fields.
-type CensusRecord struct {
-    Age        int     `csv:"age"`
-    Sex        string  `csv:"sex"`
-    PolicyType string  `csv:"policy_type"`
-    SumAssured float64 `csv:"sum_assured"`
-    Term       int     `csv:"term"`
-}
-
-// CSVOptions configures CSV reading behavior.
-type CSVOptions struct {
-    Header       bool                         // First row contains column names
-    Limit        int                          // Max rows to read (0 = unlimited)
-    Delimiter    byte                         // Column delimiter (default ',')
-    OnParseError func(lineNum int, err error)  // Optional callback for parse errors (nil = skip)
-}
-
-// StreamOptions configures chunked parallel streaming.
-type StreamOptions struct {
-    CSVOptions            // Embeds Header, Limit, Delimiter
-    ChunkSize int         // Records per chunk (default: auto)
-    Workers   int         // Goroutine count (default: NumCPU)
-}
-
-// ColumnMap maps CSV column names to their indices.
-type ColumnMap map[string]int
-
-// ChunkProcessor is a callback for processing chunks of CensusRecords.
-type ChunkProcessor func(chunk []CensusRecord) error
-```
-
-#### Functions
-
-| Signature | Description |
-|-----------|-------------|
-| `StreamCSV(filepath string, opts CSVOptions, fn func([]string)) error` | Generic CSV reader; calls fn per row with string fields |
-| `StreamCSVRaw(filepath string, opts CSVOptions, fn func([][]byte)) error` | Zero-allocation CSV reader; calls fn with raw byte slices |
-| `StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(float64, int) float64) (float64, int)` | Read CSV as CensusRecords, calculate PV per row |
-| `StreamCensus(filepath string, opts CSVOptions, fn func(CensusRecord)) error` | Fast CensusRecord streaming; byte-level parallel path for default columns |
-| `StreamCensusChunked(filepath string, opts StreamOptions, processFn ChunkProcessor) (int, error)` | Parallel chunked CensusRecord processing |
-| `StreamCensusWithPV(filepath string, opts StreamOptions, pvFn func(float64, int) float64) (float64, int)` | Parallel CensusRecord PV calculation |
-| `ParseCensusRow(fields []string, colMap ColumnMap) (CensusRecord, error)` | Convert string fields to CensusRecord using column mapping |
-| `GetHeaders(filepath string, delimiter byte) ([]string, error)` | Read header row and return column names |
-
-```go
-// Generic streaming
-opts := reader.CSVOptions{Header: true, Limit: 1000}
-reader.StreamCSV("data.csv", opts, func(fields []string) {
-    fmt.Println(fields)
-})
-
-// Streaming with parse error reporting
-opts = reader.CSVOptions{
-    Header: true,
-    OnParseError: func(lineNum int, err error) {
-        fmt.Printf("Line %d: %v\n", lineNum, err)
-    },
-}
-
-// Zero-allocation streaming
-reader.StreamCSVRaw("data.csv", opts, func(fields [][]byte) {
-    // process raw bytes without allocation
-})
-
-// Census record streaming
-reader.StreamCensus("policies.csv", opts, func(rec reader.CensusRecord) {
-    fmt.Printf("Age: %d, Sum: %.2f\n", rec.Age, rec.SumAssured)
-})
-
-// Chunked parallel processing
-sopts := reader.StreamOptions{
-    CSVOptions: reader.CSVOptions{Header: true},
-    ChunkSize:  10000,
-    Workers:    8,
-}
-count, err := reader.StreamCensusChunked("policies.csv", sopts, func(chunk []reader.CensusRecord) error {
-    // process 10000 records per chunk, in parallel
-    return nil
-})
-
-// One-pass PV calculation
-converter := rates.NewRateConverter(0.05)
-totalPV, count := reader.StreamCSVWithPV("policies.csv", opts, converter.PresentValue)
-
-// Get headers then parse manually
-headers, _ := reader.GetHeaders("data.csv", ',')
-colMap := reader.ColumnMap{}
-for i, h := range headers {
-    colMap[h] = i
-}
-rec, _ := reader.ParseCensusRow([]string{"30", "M", "term", "100000", "20"}, colMap)
-```
-
----
-
-### writer
-
-Streaming JSON output for valuation results.
-
-#### Types
-
-```go
-// JSONRecord is the output structure for valuation results.
-type JSONRecord struct {
-    Age          int     `json:"age"`
-    Sex          string  `json:"sex"`
-    PolicyType   string  `json:"policy_type"`
-    SumAssured   float64 `json:"sum_assured"`
-    Term         int     `json:"term"`
-    PresentValue float64 `json:"present_value"`
-}
-
-// JSONWriter streams JSON arrays without buffering all records in memory.
-type JSONWriter struct { /* unexported fields */ }
-```
-
-#### Functions
-
-```go
-// NewJSONWriter creates a streaming JSON writer wrapping any io.Writer.
-f, _ := os.Create("output.json")
-jw := writer.NewJSONWriter(f)
-defer jw.Close()
-
-// StreamJSON is a convenience function for writing a slice as JSON.
-records := []writer.JSONRecord{{Age: 30, SumAssured: 100000, PresentValue: 37688.95}}
-writer.StreamJSON(records, os.Stdout)
-```
-
-#### Methods
-
-| Signature | Description |
-|-----------|-------------|
-| `WriteRecord(record JSONRecord) error` | Write a single record; opens JSON array on first call |
-| `Close() error` | Finalize the JSON array; writes `[]` if no records |
-
-```go
-jw := writer.NewJSONWriter(os.Stdout)
-jw.WriteRecord(writer.JSONRecord{Age: 30, SumAssured: 100000, PresentValue: 37688.95})
-jw.WriteRecord(writer.JSONRecord{Age: 45, SumAssured: 200000, PresentValue: 78000.00})
-jw.Close()
-// Output: [{"age":30,...},{"age":45,...}]
-```
-
----
-
-### concurrency
-
-Worker pool for parallel actuarial computations.
-
-#### Types
-
-```go
-// WorkerPool distributes CensusRecord processing across goroutines.
-type WorkerPool struct { /* unexported fields */ }
-```
-
-#### Functions
-
-```go
-// NewWorkerPool creates a pool with the given worker count.
-// If workers <= 0, defaults to runtime.NumCPU().
-wp := concurrency.NewWorkerPool(8, converter)
-
-// ProcessBatch is a convenience function that creates a pool and processes records.
-// Returns the total present value across all records.
-totalPV := concurrency.ProcessBatch(records, converter, 8)
-```
-
-#### Methods
-
-| Signature | Description |
-|-----------|-------------|
-| `ProcessBatch(records []reader.CensusRecord) float64` | Process records in parallel; falls back to sequential for <1000 records |
-
-```go
-converter := rates.NewRateConverter(0.05)
-records := []reader.CensusRecord{
-    {Age: 30, SumAssured: 100000, Term: 20},
-    {Age: 45, SumAssured: 200000, Term: 10},
-}
-
-// Using convenience function
-totalPV := concurrency.ProcessBatch(records, converter, 4)
-
-// Using worker pool directly
-wp := concurrency.NewWorkerPool(4, converter)
-totalPV = wp.ProcessBatch(records)
-```
-
-## Contributing
-
-Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [ROADMAP.md](./ROADMAP.md) for the full plan.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file.
+MIT — see [LICENSE](LICENSE). Use it however you want.

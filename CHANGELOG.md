@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For future plans, see [ROADMAP.md](./ROADMAP.md).
 
+## [0.3.1] - 2026-04-16
+
+### Changed
+- README.md rewritten to be more approachable for non-Go users (actuaries, Excel/VBA users, Python/R users)
+- Added clearer explanations and analogies for each feature
+
 ## [0.3.0] - 2026-04-16
 
 ### Added
@@ -51,5 +57,6 @@ For future plans, see [ROADMAP.md](./ROADMAP.md).
 - JSON output support for integration with other tools
 - Comprehensive test suite with benchmarks
 
+[0.3.1]: https://github.com/lubasinkal/v-star/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/lubasinkal/v-star/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/lubasinkal/v-star/compare/v0.1.0...v0.2.0
