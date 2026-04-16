@@ -38,6 +38,5 @@ For future plans, see [ROADMAP.md](./ROADMAP.md).
 - JSON output support for integration with other tools
 - Comprehensive test suite with benchmarks
 
-[Unreleased]: https://github.com/anomalyco/v-star/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/anomalyco/v-star/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/anomalyco/v-star/compare/v0.0.0...v0.1.0
+[Unreleased]: https://github.com/lubasinkal/v-star/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/lubasinkal/v-star/compare/v0.1.0...v0.2.0
