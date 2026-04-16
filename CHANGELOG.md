@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For future plans, see [ROADMAP.md](./ROADMAP.md).
 
+## [Unreleased]
+
+## [0.4.0] - 2026-04-16
+
+### Added
+- HTTP API server (pkg/server) for non-Go users (Python, R, Excel, etc.)
+- CLI serve subcommand (`v-star serve`) to start the HTTP API server
+- API endpoints:
+  - POST /value - Calculate present value for policy records
+  - POST /montecarlo - Run Monte Carlo simulation with VaR/CTE
+  - POST /convert-rate - Convert between nominal and effective interest rates
+  - GET /mortality/{table} - Retrieve mortality table metadata
+- Website documentation with API usage examples and curl commands
+- Raycast-inspired design system (docs/DESIGN.md) for UI consistency
+
+### Changed
+- Updated README.md to include an API section with endpoint examples
+- Improved website styling and layout for better readability
+
 ## [0.3.1] - 2026-04-16
 
 ### Changed
