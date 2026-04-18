@@ -26,9 +26,13 @@ type Table struct {
 
 // NewTable constructs a Table from a slice of qx (probability of death) values.
 // Computes lx internally using radix 100000. Index 0 corresponds to age 0.
+// Returns a Table with maxAge -1 if qx is nil or empty.
 func NewTable(name string, qx []float64) *Table {
-	maxAge := len(qx) - 1
-	lx := make([]float64, len(qx))
+	maxAge := -1
+	if len(qx) > 0 {
+		maxAge = len(qx) - 1
+	}
+	lx := make([]float64, max(len(qx), 1))
 	lx[0] = 100000
 	for i := 1; i < len(qx); i++ {
 		lx[i] = lx[i-1] * (1 - qx[i-1])
@@ -42,9 +46,12 @@ func NewTable(name string, qx []float64) *Table {
 }
 
 // Qx returns the probability of death between age x and x+1.
-// Returns 0 for out-of-range ages.
+// Returns 0 for out-of-range ages or nil table.
 func (t *Table) Qx(age int) float64 {
-	if age < 0 || age > t.maxAge {
+	if t == nil || age < 0 || age > t.maxAge {
+		return 0
+	}
+	if age >= len(t.qx) {
 		return 0
 	}
 	return t.qx[age]

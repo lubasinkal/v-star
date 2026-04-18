@@ -9,6 +9,25 @@ For future plans, see [ROADMAP.md](./ROADMAP.md).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-18
+
+### Added
+- Detailed CLI help with subcommand-specific flags and examples
+- Python bridge now includes HTTP API client (`VStar` class) and CLI wrapper (`VStarCLI`)
+- Comprehensive test coverage across all packages:
+  - pkg/server: 45%+ (was 0%)
+  - pkg/reader: 41%+ (was 20%)
+  - pkg/mortality: 63%+ (was 10%)
+
+### Changed
+- Updated go.mod to v0.5.0
+- Expanded README Quickstart with curl and Python HTTP examples
+- Added Monte Carlo benchmark comparison to README
+
+### Fixed
+- Mortality table edge cases (empty tables, out-of-range ages)
+- CLI help text now shows all subcommands and flags
+
 ## [0.4.0] - 2026-04-16
 
 ### Added
