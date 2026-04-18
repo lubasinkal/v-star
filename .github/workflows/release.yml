@@ -19,34 +19,55 @@ jobs:
         with:
           go-version: "1.26"
 
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-
-      - name: Build binaries
+      - name: Extract version
         run: |
-          go build -ldflags="-s -w" -o v-star-$VERSION-linux-amd64 ./cmd/v-star
-          go build -ldflags="-s -w" -o v-star-$VERSION-darwin-amd64 ./cmd/v-star
-          go build -ldflags="-s -w" -o v-star-$VERSION-darwin-arm64 ./cmd/v-star
-          go build -ldflags="-s -w" -o v-star-$VERSION-windows-amd64.exe ./cmd/v-star
+          VERSION="${GITHUB_REF#refs/tags/}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build Linux binary
+        run: |
+          echo "Building linux-amd64..."
+          go build -ldflags="-s -w" -o v-star-${{ env.VERSION }}-linux-amd64 ./cmd/v-star
+
+      - name: Build Darwin amd64
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o v-star-${{ env.VERSION }}-darwin-amd64 ./cmd/v-star
+
+      - name: Build Darwin arm64
+        run: |
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o v-star-${{ env.VERSION }}-darwin-arm64 ./cmd/v-star
+
+      - name: Build Windows binary
+        run: |
+          GOOS=windows go build -ldflags="-s -w" -o v-star-${{ env.VERSION }}-windows-amd64.exe ./cmd/v-star
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Build Python wheel
         run: |
           cd examples/python_bridge
+          python -m pip install build
           python -m build
           cd ../..
 
+      - name: List files
+        run: |
+          echo "=== Binaries ==="
+          ls -la v-star-*
+          echo "=== Python ==="
+          ls -la examples/python_bridge/dist/
+
       - name: Generate changelog
-        id: changelog
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
             CHANGES=$(git log --format="- %s (%h)" $PREV_TAG..HEAD -- . ':!.github')
           else
-            CHANGES=$(git log --format="- %s (%h)" HEAD~20..HEAD -- . ':!.github')
+            CHANGES="Initial release"
           fi
-          echo "$CHANGES" >> $GITHUB_OUTPUT
           echo "full_changelog=$CHANGES" >> $GITHUB_ENV
 
       - name: Create release
@@ -55,7 +76,7 @@ jobs:
           tag_name: ${{ env.VERSION }}
           name: Release ${{ env.VERSION }}
           body: |
-            ## Changes since last release
+            ## What's New
             ${{ env.full_changelog }}
 
             ## Installation
@@ -70,18 +91,14 @@ jobs:
             pip install vstar-py
             ```
 
-            Or download the wheel from assets below.
+            Or download an asset from below.
           draft: false
           prerelease: false
           files: |
-            v-star-${{ env.VERSION }}-*.exe
-            v-star-${{ env.VERSION }}-*-amd64
+            v-star-${{ env.VERSION }}-linux-amd64
+            v-star-${{ env.VERSION }}-darwin-amd64
             v-star-${{ env.VERSION }}-darwin-arm64
+            v-star-${{ env.VERSION }}-windows-amd64.exe
             examples/python_bridge/dist/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to existing release
-        if: failure()
-        run: |
-          gh release upload ${{ env.VERSION }} v-star-${{ env.VERSION }}-*.exe v-star-${{ env.VERSION }}-*-amd64 v-star-${{ env.VERSION }}-darwin-arm64 examples/python_bridge/dist/*.whl --clobber
