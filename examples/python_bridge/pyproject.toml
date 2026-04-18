@@ -22,7 +22,9 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest", "build"]
+pandas = ["pandas"]
 server = ["requests"]
+all = ["pandas", "requests"]
 
 [project.urls]
 Homepage = "https://github.com/lubasinkal/v-star"
