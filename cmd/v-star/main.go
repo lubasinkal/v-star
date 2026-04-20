@@ -97,8 +97,7 @@ Examples:
   v-star bench
   v-star serve --port=8080
 
-Run 'v-star help <subcommand>' for detailed subcommand help.
-`)
+Run 'v-star help <subcommand>' for detailed subcommand help.`)
 }
 
 func printSubcommandHelp(subcommand string) {
@@ -130,8 +129,7 @@ Examples:
   v-star read policies.csv
   v-star read policies.csv --benchmark
   v-star read policies.csv --table=mortality.csv --output=json
-  v-star read policies.csv --interest=0.04 --limit=10000
-`)
+  v-star read policies.csv --interest=0.04 --limit=10000`)
 	case "montecarlo":
 		fmt.Println(`Usage: v-star montecarlo [flags]
 
@@ -153,8 +151,7 @@ Notes:
 Examples:
   v-star montecarlo
   v-star montecarlo --paths=100000 --steps=10 --seed=42
-  v-star montecarlo --drift=0.03 --volatility=0.20
-`)
+  v-star montecarlo --drift=0.03 --volatility=0.20`)
 	case "bench":
 		fmt.Println(`Usage: v-star bench
 
@@ -167,8 +164,7 @@ Run performance benchmark suite including:
 No flags. Output includes detailed timing and throughput.
 
 Examples:
-  v-star bench
-`)
+  v-star bench`)
 	case "serve":
 		fmt.Println(`Usage: v-star serve [flags]
 
@@ -191,8 +187,7 @@ Examples:
 
 API Usage (curl):
   curl -X POST http://localhost:8080/value -d '{"records":[...]}'
-  curl -X POST http://localhost:8080/montecarlo -d '{"paths":100000,"steps":10}'
-`)
+  curl -X POST http://localhost:8080/montecarlo -d '{"paths":100000,"steps":10}'`)
 	default:
 		fmt.Printf("Error: unknown subcommand '%s'\n\n", subcommand)
 		printGeneralUsage()
