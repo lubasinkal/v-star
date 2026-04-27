@@ -35,12 +35,19 @@ func Bench() {
 }
 
 func benchmarkCSV() {
-	filepath := "2M_test.csv"
+	filepath := "10M.csv"
 
 	if _, err := os.Stat(filepath); os.IsNotExist(err) {
-		fmt.Println("  Skipping: 2M_test.csv not found")
+		fmt.Println("  Skipping: 10M.csv not found")
 		return
 	}
+
+	// Warmup run
+	_ = reader.StreamCensus(filepath, reader.CSVOptions{Header: true, Limit: 10000000}, func(r reader.CensusRecord) {})
+
+	// GC to get clean baseline
+	runtime.GC()
+	runtime.GC()
 
 	var memStatsBefore runtime.MemStats
 	runtime.ReadMemStats(&memStatsBefore)
@@ -48,12 +55,13 @@ func benchmarkCSV() {
 	start := time.Now()
 	var count int
 
-	err := reader.StreamCensus(filepath, reader.CSVOptions{Header: true, Limit: 1000000}, func(r reader.CensusRecord) {
+	err := reader.StreamCensus(filepath, reader.CSVOptions{Header: true, Limit: 10000000}, func(r reader.CensusRecord) {
 		count++
 	})
 
 	duration := time.Since(start)
 
+	// Read memory stats immediately without GC to capture actual allocations
 	var memStatsAfter runtime.MemStats
 	runtime.ReadMemStats(&memStatsAfter)
 
@@ -74,8 +82,10 @@ func benchmarkCSV() {
 }
 
 func benchmarkValuation() {
-	records := make([]reader.CensusRecord, 1000000)
-	for i := range 1000000 {
+	// Setup test data - 10M records
+	numRecords := 10000000
+	records := make([]reader.CensusRecord, numRecords)
+	for i := range numRecords {
 		records[i] = reader.CensusRecord{
 			Age:        30 + i%50,
 			Sex:        "male",
@@ -87,6 +97,13 @@ func benchmarkValuation() {
 
 	converter := rates.NewRateConverter(0.05)
 
+	// Warmup run
+	concurrency.ProcessBatch(records, converter, runtime.NumCPU())
+
+	// GC to get clean baseline
+	runtime.GC()
+	runtime.GC()
+
 	var memStatsBefore runtime.MemStats
 	runtime.ReadMemStats(&memStatsBefore)
 
@@ -94,6 +111,7 @@ func benchmarkValuation() {
 	totalPV := concurrency.ProcessBatch(records, converter, runtime.NumCPU())
 	duration := time.Since(start)
 
+	// Read memory stats immediately without GC to capture actual allocations
 	var memStatsAfter runtime.MemStats
 	runtime.ReadMemStats(&memStatsAfter)
 
@@ -110,16 +128,24 @@ func benchmarkValuation() {
 }
 
 func benchmarkMonteCarlo() {
+	// Warmup run
+	rg := stochastic.NewRateGenerator(0.05, 0.02, 0.15)
+	_ = rg.GeneratePaths(1000000, 10, 1.0)
+
+	// GC to get clean baseline
+	runtime.GC()
+	runtime.GC()
+
 	var memStatsBefore runtime.MemStats
 	runtime.ReadMemStats(&memStatsBefore)
 
 	start := time.Now()
 
-	rg := stochastic.NewRateGenerator(0.05, 0.02, 0.15)
-	paths := rg.GeneratePaths(100000, 10, 1.0)
+	paths := rg.GeneratePaths(1000000, 10, 1.0)
 
 	duration := time.Since(start)
 
+	// Read memory stats immediately without GC to capture actual allocations
 	var memStatsAfter runtime.MemStats
 	runtime.ReadMemStats(&memStatsAfter)
 
