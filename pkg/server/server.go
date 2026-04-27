@@ -2,6 +2,20 @@
 // This allows Python, R, Excel, and other non-Go users to access v-star functionality.
 package server
 
+// TODO: FIX: Improve test coverage (currently 45%) for HTTP handlers.
+// HINT: Add tests for /health, /value, /montecarlo, /convert-rate, /mortality/ endpoints.
+// Use httptest.NewRecorder() and httptest.NewRequest(). See server_test.go for examples.
+
+// TODO: FIX: Add input validation for all HTTP request handlers.
+// HINT: Validate PVRequest (interest_rate must be valid, records not nil), MonteCarloRequest (num_paths >0, steps >0).
+// Return http.StatusBadRequest with descriptive error message if validation fails.
+
+// TODO: FIX: Handle errors more gracefully in StreamCSVHandler.
+// HINT: strconv.ParseFloat returns error; handle it instead of ignoring. Validate rate parameter.
+
+// TODO: FIX: Add rate limiting or timeout for HTTP handlers to prevent abuse.
+// HINT: Use http.TimeoutHandler or implement middleware.
+
 import (
 	"encoding/json"
 	"io"

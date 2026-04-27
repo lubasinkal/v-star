@@ -1,5 +1,11 @@
 package commands
 
+// TODO: FIX: Add tests for MonteCarlo function.
+// HINT: Test with various flag combinations (--paths, --steps, --seed). Verify output contains expected strings.
+
+// TODO: FIX: Add validation for Monte Carlo parameters (paths>0, steps>0, volatility>=0).
+// HINT: Add a validate function that returns error if invalid, and call it before generation.
+
 import (
 	"fmt"
 	"os"

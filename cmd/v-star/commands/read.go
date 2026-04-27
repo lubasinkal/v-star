@@ -1,5 +1,12 @@
 package commands
 
+// TODO: FIX: Add unit tests for Read function and CSV processing logic.
+// HINT: Create test with temp CSV file, call Read([]string{"read", filepath, "--benchmark"}).
+// Verify output contains expected strings. Use os.Pipe to capture stdout.
+
+// TODO: FIX: Improve error handling for flag parsing and file operations.
+// HINT: Return errors instead of os.Exit(1) to allow testing. Consider using error returns.
+
 import (
 	"fmt"
 	"os"

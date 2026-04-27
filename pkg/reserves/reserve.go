@@ -1,5 +1,14 @@
 package reserves
 
+// TODO: FIX: Improve test coverage (currently 34.9%) by adding table-driven tests for all exported functions.
+// HINT: Create tests for NetPremiumReserve, GrossPremiumReserve, ProspectiveReserve, RetrospectiveReserve.
+// Use edge cases: age<0, term<=0, sumAssured<=0, premium<=0. Verify against manual calculations.
+// See pkg/rates/rates_test.go for table-driven test examples.
+
+// TODO: FIX: Add proper error handling instead of returning 0 for invalid inputs.
+// HINT: Change function signatures to return (float64, error). Use errors.New or fmt.Errorf.
+// Example: if age < 0 { return 0, errors.New("age cannot be negative") }
+
 import (
 	"github.com/lubasinkal/v-star/pkg/annuities"
 	"github.com/lubasinkal/v-star/pkg/mortality"

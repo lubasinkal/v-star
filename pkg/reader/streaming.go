@@ -1,5 +1,15 @@
 package reader
 
+// TODO: FIX: Improve test coverage (currently 41.6%) for streaming functions.
+// HINT: Add tests for StreamCensusChunked, StreamCensusWithPV, and edge cases (empty file, malformed CSV).
+// See csv_test.go for existing test patterns.
+
+// TODO: FIX: Enhance error handling in streaming functions. StreamCensusWithPV returns (0,0) on error instead of error.
+// HINT: Consider returning (float64, int, error) to propagate errors properly. Handle parse errors with options.OnParseError.
+
+// TODO: FIX: Add input validation for StreamOptions (ChunkSize >0, Workers >0).
+// HINT: Add validation helper function and call it at start of StreamCensusChunked.
+
 import (
 	"bufio"
 	"errors"

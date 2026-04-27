@@ -1,5 +1,12 @@
 package main
 
+// TODO: FIX: Add tests for CLI commands (cmd/v-star has 0% test coverage).
+// HINT: Use the flag package programmatically or test the subcommand functions directly.
+// Example: Test commands.Read by creating a temp CSV and calling the function with modified os.Args.
+
+// TODO: FIX: Add integration tests for the full CLI workflow.
+// HINT: Use exec.Command to run ./v-star with various flags and subcommands, check output.
+
 import (
 	"flag"
 	"fmt"

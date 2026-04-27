@@ -1,5 +1,11 @@
 package commands
 
+// TODO: FIX: Add tests for Serve function.
+// HINT: Test that server starts and responds to /health endpoint. Use httptest or exec.Command.
+
+// TODO: FIX: Improve port validation and error messages.
+// HINT: Validate port is numeric and in valid range. Return clear error if server fails to start.
+
 import (
 	"fmt"
 	"os"
