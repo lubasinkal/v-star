@@ -18,7 +18,7 @@ import (
 
 func Read(args []string) {
 	if len(args) < 2 {
-		fmt.Println("Usage: v-star read <file.csv> [--benchmark] [--limit=N] [--output=console|json]")
+		fmt.Println("Usage: v-star read <file.csv> [--benchmark] [--limit=N] [--output=console|json|csv|report]")
 		fmt.Println("       v-star read <file.csv> --table=<mortality.csv> [--interest=0.05]")
 		os.Exit(1)
 	}
@@ -179,6 +179,36 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 			os.Exit(1)
 		}
 		fmt.Println()
+	} else if output == "csv" {
+		csvRecords := make([]writer.CSVRecord, len(allResults))
+		for i, r := range allResults {
+			csvRecords[i] = writer.CSVRecord{
+				Age:          r.Age,
+				Sex:          r.Sex,
+				PolicyType:   r.PolicyType,
+				SumAssured:   r.SumAssured,
+				Term:         r.Term,
+				PresentValue: r.PresentValue,
+			}
+		}
+		if err := writer.StreamCSV(csvRecords, os.Stdout); err != nil {
+			fmt.Printf("Error writing CSV: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println()
+	} else if output == "report" {
+		assumptions := writer.FormatAssumptions(interest, tablePath, nil)
+		data := writer.ReportData{
+			Title:             "Actuarial Valuation Report",
+			InterestRate:      interest,
+			RecordCount:       count,
+			TotalPresentValue: totalPV,
+			Assumptions:       assumptions,
+		}
+		if err := writer.StreamTextReport(data, os.Stdout); err != nil {
+			fmt.Printf("Error writing report: %v\n", err)
+			os.Exit(1)
+		}
 	} else {
 		fmt.Printf("Processed %d records with mortality table: %s\n", count, mort.Name())
 		fmt.Printf("Total Present Value: %.2f\n", totalPV)
@@ -196,25 +226,76 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 func readWithoutMortality(filepath string, interest float64, header bool, limit int, output string, benchmark bool, start time.Time) {
 	converter := rates.NewRateConverter(interest)
 
-	opts := reader.StreamOptions{
-		CSVOptions: reader.CSVOptions{
-			Header: header,
-			Limit:  limit,
-		},
+	opts := reader.CSVOptions{
+		Header: header,
+		Limit:  limit,
 	}
 
-	totalPV, count := reader.StreamCensusWithPV(filepath, opts, converter.PresentValue)
+	var totalPV float64
+	var allResults []writer.JSONRecord
 
+	reader.StreamCensus(filepath, opts, func(rec reader.CensusRecord) {
+		pv := converter.PresentValue(rec.SumAssured, rec.Term)
+		totalPV += pv
+		allResults = append(allResults, writer.JSONRecord{
+			Sex:          rec.Sex,
+			PolicyType:   rec.PolicyType,
+			Age:          rec.Age,
+			SumAssured:   rec.SumAssured,
+			Term:         rec.Term,
+			PresentValue: pv,
+		})
+	})
+
+	count := len(allResults)
 	duration := time.Since(start)
 
-	if benchmark {
-		fmt.Printf("\n=== Benchmark Results ===\n")
-		fmt.Printf("Total rows: %d\n", count)
-		fmt.Printf("Duration: %v\n", duration)
-		fmt.Printf("Throughput: %.0f rows/sec\n", float64(count)/duration.Seconds())
-		fmt.Printf("Total Present Value: %.2f\n", totalPV)
+	if output == "json" {
+		if err := writer.StreamJSON(allResults, os.Stdout); err != nil {
+			fmt.Printf("Error writing JSON: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println()
+	} else if output == "csv" {
+		csvRecords := make([]writer.CSVRecord, len(allResults))
+		for i, r := range allResults {
+			csvRecords[i] = writer.CSVRecord{
+				Age:          r.Age,
+				Sex:          r.Sex,
+				PolicyType:   r.PolicyType,
+				SumAssured:   r.SumAssured,
+				Term:         r.Term,
+				PresentValue: r.PresentValue,
+			}
+		}
+		if err := writer.StreamCSV(csvRecords, os.Stdout); err != nil {
+			fmt.Printf("Error writing CSV: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println()
+	} else if output == "report" {
+		assumptions := writer.FormatAssumptions(interest, "", nil)
+		data := writer.ReportData{
+			Title:             "Actuarial Valuation Report",
+			InterestRate:      interest,
+			RecordCount:       count,
+			TotalPresentValue: totalPV,
+			Assumptions:       assumptions,
+		}
+		if err := writer.StreamTextReport(data, os.Stdout); err != nil {
+			fmt.Printf("Error writing report: %v\n", err)
+			os.Exit(1)
+		}
 	} else {
-		fmt.Printf("Processed %d records\n", count)
-		fmt.Printf("Total Present Value: %.2f\n", totalPV)
+		if benchmark {
+			fmt.Printf("\n=== Benchmark Results ===\n")
+			fmt.Printf("Total rows: %d\n", count)
+			fmt.Printf("Duration: %v\n", duration)
+			fmt.Printf("Throughput: %.0f rows/sec\n", float64(count)/duration.Seconds())
+			fmt.Printf("Total Present Value: %.2f\n", totalPV)
+		} else {
+			fmt.Printf("Processed %d records\n", count)
+			fmt.Printf("Total Present Value: %.2f\n", totalPV)
+		}
 	}
 }

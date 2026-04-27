@@ -113,7 +113,7 @@ Arguments:
 Flags:
   -i, --interest=fLOAT   interest rate (default 0.05)
   -t, --table=PATH       mortality table CSV path
-  -o, --output=STRING    output format: console, json (default console)
+  -o, --output=STRING    output format: console, json, csv, report (default console)
   -b, --benchmark        show benchmark results
   -l, --limit=N         limit number of rows to process
   -H, --header          file has header row (default true)
@@ -129,6 +129,8 @@ Examples:
   v-star read policies.csv
   v-star read policies.csv --benchmark
   v-star read policies.csv --table=mortality.csv --output=json
+  v-star read policies.csv --output=csv
+  v-star read policies.csv --output=report
   v-star read policies.csv --interest=0.04 --limit=10000`)
 	case "montecarlo":
 		fmt.Println(`Usage: v-star montecarlo [flags]
@@ -180,6 +182,8 @@ Endpoints:
   POST /montecarlo         - Run Monte Carlo simulation, get VaR/CTE
   POST /convert-rate        - Convert between nominal and effective rates
   GET  /mortality/{table}   - Get mortality table info
+  POST /export/csv          - Export valuation records as CSV
+  POST /export/report       - Export valuation report as text
 
 Examples:
   v-star serve
@@ -187,7 +191,9 @@ Examples:
 
 API Usage (curl):
   curl -X POST http://localhost:8080/value -d '{"records":[...]}'
-  curl -X POST http://localhost:8080/montecarlo -d '{"paths":100000,"steps":10}'`)
+  curl -X POST http://localhost:8080/montecarlo -d '{"paths":100000,"steps":10}'
+  curl -X POST http://localhost:8080/export/csv -d '{"records":[...]}'
+  curl -X POST http://localhost:8080/export/report -d '{"records":[...]'`)
 	default:
 		fmt.Printf("Error: unknown subcommand '%s'\n\n", subcommand)
 		printGeneralUsage()

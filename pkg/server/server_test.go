@@ -173,6 +173,72 @@ func TestServerNew(t *testing.T) {
 	}
 }
 
+func TestExportCSVHandlerInvalidMethod(t *testing.T) {
+	req := httptest.NewRequest("GET", "/export/csv", nil)
+	w := httptest.NewRecorder()
+
+	(&Server{}).exportCSVHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestExportCSVHandler(t *testing.T) {
+	body := `{"interest_rate":0.05,"records":[{"sum_assured":100000,"term":20}]}`
+	req := httptest.NewRequest("POST", "/export/csv", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	(&Server{}).exportCSVHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	contentType := w.Header().Get("Content-Type")
+	if contentType != "text/csv" {
+		t.Errorf("Content-Type = %q, want %q", contentType, "text/csv")
+	}
+
+	if !strings.Contains(w.Body.String(), "sex,policy_type,age,sum_assured,term,present_value") {
+		t.Errorf("CSV header not found in response: %s", w.Body.String())
+	}
+}
+
+func TestExportReportHandlerInvalidMethod(t *testing.T) {
+	req := httptest.NewRequest("GET", "/export/report", nil)
+	w := httptest.NewRecorder()
+
+	(&Server{}).exportReportHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestExportReportHandler(t *testing.T) {
+	body := `{"interest_rate":0.05,"records":[{"sum_assured":100000,"term":20}]}`
+	req := httptest.NewRequest("POST", "/export/report", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	(&Server{}).exportReportHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	contentType := w.Header().Get("Content-Type")
+	if contentType != "text/plain" {
+		t.Errorf("Content-Type = %q, want %q", contentType, "text/plain")
+	}
+
+	if !strings.Contains(w.Body.String(), "Actuarial Valuation Report") {
+		t.Errorf("Report title not found in response: %s", w.Body.String())
+	}
+}
+
 func BenchmarkServerNew(b *testing.B) {
 	for b.Loop() {
 		_ = New(":8080")

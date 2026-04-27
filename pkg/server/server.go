@@ -14,6 +14,7 @@ import (
 	"github.com/lubasinkal/v-star/pkg/reader"
 	"github.com/lubasinkal/v-star/pkg/risk"
 	"github.com/lubasinkal/v-star/pkg/stochastic"
+	"github.com/lubasinkal/v-star/pkg/writer"
 )
 
 type Server struct {
@@ -79,6 +80,8 @@ func (s *Server) Start() error {
 	http.HandleFunc("/montecarlo", s.monteCarloHandler)
 	http.HandleFunc("/convert-rate", s.convertRateHandler)
 	http.HandleFunc("/mortality/", s.mortalityHandler)
+	http.HandleFunc("/export/csv", s.exportCSVHandler)
+	http.HandleFunc("/export/report", s.exportReportHandler)
 	return http.ListenAndServe(s.addr, nil)
 }
 
@@ -269,8 +272,7 @@ func StreamCSVHandler(w http.ResponseWriter, r *http.Request) {
 	converter := rates.NewRateConverter(rate)
 	opts := reader.CSVOptions{Header: true}
 
-	var totalPV float64
-	var count int
+	var csvRecords []writer.CSVRecord
 
 	tempFile, err := os.CreateTemp("", "upload-*.csv")
 	if err != nil {
@@ -283,13 +285,96 @@ func StreamCSVHandler(w http.ResponseWriter, r *http.Request) {
 	tempFile.Close()
 
 	reader.StreamCensus(tempFile.Name(), opts, func(rec reader.CensusRecord) {
-		totalPV += converter.PresentValue(rec.SumAssured, rec.Term)
-		count++
+		pv := converter.PresentValue(rec.SumAssured, rec.Term)
+		csvRecords = append(csvRecords, writer.CSVRecord{
+			Sex:          rec.Sex,
+			PolicyType:   rec.PolicyType,
+			Age:          rec.Age,
+			SumAssured:   rec.SumAssured,
+			Term:         rec.Term,
+			PresentValue: pv,
+		})
 	})
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(PVResponse{
-		TotalPV:     totalPV,
-		RecordCount: count,
-	})
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"export.csv\"")
+	if err := writer.StreamCSV(csvRecords, w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) exportCSVHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req PVRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	converter := rates.NewRateConverter(req.InterestRate)
+
+	records := make([]writer.CSVRecord, 0, len(req.Records))
+	for _, rec := range req.Records {
+		var pv float64
+		if req.RateJ > 0 {
+			pv = converter.PresentValueStar(rec.SumAssured, rec.Term, req.RateJ)
+		} else {
+			pv = converter.PresentValue(rec.SumAssured, rec.Term)
+		}
+		records = append(records, writer.CSVRecord{
+			Age:          rec.Age,
+			SumAssured:   rec.SumAssured,
+			Term:         rec.Term,
+			PresentValue: pv,
+		})
+	}
+
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"export.csv\"")
+	if err := writer.StreamCSV(records, w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) exportReportHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req PVRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	converter := rates.NewRateConverter(req.InterestRate)
+
+	var totalPV float64
+	recordCount := len(req.Records)
+	for _, rec := range req.Records {
+		if req.RateJ > 0 {
+			totalPV += converter.PresentValueStar(rec.SumAssured, rec.Term, req.RateJ)
+		} else {
+			totalPV += converter.PresentValue(rec.SumAssured, rec.Term)
+		}
+	}
+
+	assumptions := writer.FormatAssumptions(req.InterestRate, "", nil)
+	data := writer.ReportData{
+		Title:             "Actuarial Valuation Report",
+		InterestRate:      req.InterestRate,
+		RecordCount:       recordCount,
+		TotalPresentValue: totalPV,
+		Assumptions:       assumptions,
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	if err := writer.StreamTextReport(data, w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
