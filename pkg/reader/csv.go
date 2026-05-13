@@ -12,6 +12,13 @@ import (
 	"unsafe"
 )
 
+var bufferPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, 64*1024)
+		return &buf
+	},
+}
+
 // CSVOptions configures CSV reading behavior.
 type CSVOptions struct {
 	OnParseError func(lineNum int, err error)
@@ -98,7 +105,12 @@ func buildChunks(headerOffset, dataSize int64, numWorkers int) []csvJob {
 // Uses j.limit to determine the processing boundary (excludes overlap).
 func processChunk(f *os.File, j csvJob, headerOffset int64, lineHandler func(line []byte)) error {
 	bufSize := int(j.end - j.start)
-	buf := make([]byte, bufSize)
+	bufPtr := bufferPool.Get().(*[]byte)
+	if cap(*bufPtr) < bufSize {
+		*bufPtr = make([]byte, bufSize)
+	}
+	defer bufferPool.Put(bufPtr)
+	buf := (*bufPtr)[:bufSize]
 	n, err := f.ReadAt(buf, j.start)
 	if err != nil && err != io.EOF {
 		return err

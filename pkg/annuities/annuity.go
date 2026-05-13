@@ -29,13 +29,13 @@ func (a *AnnuityCalculator) WholeLifeImmediate(age int, amount float64) float64 
 	}
 	maxAge := a.mort.MaxAge()
 	sum := 0.0
-	for t := 1; age+t <= maxAge+1; t++ {
-		probSurvive := a.mort.Px(age, t)
-		if probSurvive <= 0 {
+	px := 1.0
+	for t := 1; age+t-1 <= maxAge; t++ {
+		px *= 1 - a.mort.Qx(age+t-1)
+		if px <= 0 {
 			break
 		}
-		discount := a.discount.Discount(t)
-		sum += probSurvive * discount
+		sum += px * a.discount.Discount(t)
 	}
 	return amount * sum
 }
@@ -46,11 +46,18 @@ func (a *AnnuityCalculator) TermImmediate(age int, term int, amount float64) flo
 	if age < 0 || term <= 0 || amount <= 0 {
 		return 0
 	}
+	maxAge := a.mort.MaxAge()
 	sum := 0.0
+	px := 1.0
 	for t := 1; t <= term; t++ {
-		probSurvive := a.mort.Px(age, t)
-		discount := a.discount.Discount(t)
-		sum += probSurvive * discount
+		if age+t-1 > maxAge {
+			break
+		}
+		px *= 1 - a.mort.Qx(age+t-1)
+		if px <= 0 {
+			break
+		}
+		sum += px * a.discount.Discount(t)
 	}
 	return amount * sum
 }
@@ -62,14 +69,14 @@ func (a *AnnuityCalculator) WholeLifeDue(age int, amount float64) float64 {
 		return 0
 	}
 	maxAge := a.mort.MaxAge()
-	sum := 0.0
-	for t := 0; age+t <= maxAge+1; t++ {
-		probSurvive := a.mort.Px(age, t)
-		if t > 0 && probSurvive <= 0 {
+	sum := a.discount.Discount(0)
+	px := 1.0
+	for t := 1; age+t-1 <= maxAge; t++ {
+		px *= 1 - a.mort.Qx(age+t-1)
+		if px <= 0 {
 			break
 		}
-		discount := a.discount.Discount(t)
-		sum += probSurvive * discount
+		sum += px * a.discount.Discount(t)
 	}
 	return amount * sum
 }
@@ -80,11 +87,18 @@ func (a *AnnuityCalculator) TermDue(age int, term int, amount float64) float64 {
 	if age < 0 || term <= 0 || amount <= 0 {
 		return 0
 	}
-	sum := 0.0
-	for t := range term {
-		probSurvive := a.mort.Px(age, t)
-		discount := a.discount.Discount(t)
-		sum += probSurvive * discount
+	maxAge := a.mort.MaxAge()
+	sum := a.discount.Discount(0)
+	px := 1.0
+	for t := 1; t < term; t++ {
+		if age+t-1 > maxAge {
+			break
+		}
+		px *= 1 - a.mort.Qx(age+t-1)
+		if px <= 0 {
+			break
+		}
+		sum += px * a.discount.Discount(t)
 	}
 	return amount * sum
 }
@@ -163,17 +177,19 @@ func (a *AnnuityCalculator) TermNSP(age int, term int, sumAssured float64) float
 	}
 	maxAge := a.mort.MaxAge()
 	nsp := 0.0
+	px := 1.0
 	for t := 1; t <= term; t++ {
 		if age+t-1 > maxAge {
 			break
 		}
 		qx := a.mort.Qx(age + t - 1)
-		if qx <= 0 {
-			continue
+		if qx > 0 {
+			nsp += px * qx * a.discount.Discount(t)
 		}
-		px := a.mort.Px(age, t-1)
-		discount := a.discount.Discount(t)
-		nsp += px * qx * discount
+		px *= 1 - qx
+		if px <= 0 {
+			break
+		}
 	}
 	return sumAssured * nsp
 }

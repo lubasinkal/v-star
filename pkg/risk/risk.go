@@ -16,12 +16,7 @@ func VaR(losses []float64, confidence float64) float64 {
 	sorted := make([]float64, len(losses))
 	copy(sorted, losses)
 	slices.Sort(sorted)
-
-	idx := int(confidence * float64(len(sorted)-1))
-	if idx >= len(sorted) {
-		idx = len(sorted) - 1
-	}
-	return sorted[idx]
+	return varSorted(sorted, confidence)
 }
 
 // CTE computes Conditional Tail Expectation (Expected Shortfall).
@@ -31,20 +26,30 @@ func CTE(losses []float64, confidence float64) float64 {
 	if len(losses) == 0 || confidence <= 0 || confidence >= 1 {
 		return 0
 	}
-	varThreshold := VaR(losses, confidence)
+	sorted := make([]float64, len(losses))
+	copy(sorted, losses)
+	slices.Sort(sorted)
+	return cteSorted(sorted, confidence)
+}
 
+func varSorted(sorted []float64, confidence float64) float64 {
+	idx := int(confidence * float64(len(sorted)-1))
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
+	return sorted[idx]
+}
+
+func cteSorted(sorted []float64, confidence float64) float64 {
+	idx := int(confidence * float64(len(sorted)-1))
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
 	sum := 0.0
-	count := 0
-	for _, loss := range losses {
-		if loss >= varThreshold {
-			sum += loss
-			count++
-		}
+	for i := idx; i < len(sorted); i++ {
+		sum += sorted[i]
 	}
-	if count == 0 {
-		return varThreshold
-	}
-	return sum / float64(count)
+	return sum / float64(len(sorted)-idx)
 }
 
 // ExpectedShortfall is an alias for CTE.
@@ -92,15 +97,19 @@ func ComputeReport(losses []float64) RiskReport {
 	}
 	variance /= n
 
+	sorted := make([]float64, len(losses))
+	copy(sorted, losses)
+	slices.Sort(sorted)
+
 	return RiskReport{
 		Mean:   mean,
 		StdDev: math.Sqrt(variance),
 		Min:    min,
 		Max:    max,
-		VaR95:  VaR(losses, 0.95),
-		VaR99:  VaR(losses, 0.99),
-		CTE95:  CTE(losses, 0.95),
-		CTE99:  CTE(losses, 0.99),
+		VaR95:  varSorted(sorted, 0.95),
+		VaR99:  varSorted(sorted, 0.99),
+		CTE95:  cteSorted(sorted, 0.95),
+		CTE99:  cteSorted(sorted, 0.99),
 	}
 }
 

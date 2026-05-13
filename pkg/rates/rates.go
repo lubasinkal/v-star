@@ -39,12 +39,7 @@ func (r *RateConverter) Discount(term int) float64 {
 	if term < len(r.discountTable) {
 		return r.discountTable[term]
 	}
-	v := r.V()
-	result := 1.0
-	for range term {
-		result *= v
-	}
-	return result
+	return math.Pow(r.V(), float64(term))
 }
 
 // V returns the one-period discount factor v = 1/(1+i).
@@ -66,12 +61,7 @@ func (r *RateConverter) PresentValue(sumAssured float64, term int) float64 {
 	if term < len(r.discountTable) {
 		return sumAssured * r.discountTable[term]
 	}
-	v := r.V()
-	result := sumAssured
-	for range term {
-		result *= v
-	}
-	return result
+	return sumAssured * math.Pow(r.V(), float64(term))
 }
 
 // PresentValueStar returns sumAssured * (v*)^term using the v-star discount factor.

@@ -18,7 +18,8 @@ import (
 )
 
 type Server struct {
-	addr string
+	addr             string
+	MortalityTableDir string
 }
 
 type PVRequest struct {
@@ -42,12 +43,13 @@ type PVResponse struct {
 }
 
 type MonteCarloRequest struct {
-	InitialRate float64 `json:"initial_rate"`
-	Drift       float64 `json:"drift"`
-	Volatility  float64 `json:"volatility"`
-	NumPaths    int     `json:"num_paths"`
-	Steps       int     `json:"steps"`
-	Seed        int64   `json:"seed,omitempty"`
+	InitialRate  float64 `json:"initial_rate"`
+	Drift        float64 `json:"drift"`
+	Volatility   float64 `json:"volatility"`
+	NumPaths     int     `json:"num_paths"`
+	Steps        int     `json:"steps"`
+	Seed         int64   `json:"seed,omitempty"`
+	IncludePaths bool    `json:"include_paths,omitempty"`
 }
 
 type MonteCarloResponse struct {
@@ -71,7 +73,7 @@ type ConvertRateResponse struct {
 }
 
 func New(addr string) *Server {
-	return &Server{addr: addr}
+	return &Server{addr: addr, MortalityTableDir: "mortality"}
 }
 
 func (s *Server) Start() error {
@@ -161,13 +163,17 @@ func (s *Server) monteCarloHandler(w http.ResponseWriter, r *http.Request) {
 	report := risk.ComputeReport(losses)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(MonteCarloResponse{
-		Paths:  paths,
+	resp := MonteCarloResponse{
+		Paths:  nil,
 		Mean:   report.Mean,
 		StdDev: report.StdDev,
 		VaR95:  report.VaR95,
 		CTE95:  report.CTE95,
-	})
+	}
+	if req.IncludePaths {
+		resp.Paths = paths
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (s *Server) convertRateHandler(w http.ResponseWriter, r *http.Request) {
@@ -206,7 +212,7 @@ func (s *Server) mortalityHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	table, err := mortality.LoadCSV("mortality/" + tableName + ".csv")
+	table, err := mortality.LoadCSV(s.MortalityTableDir + "/" + tableName + ".csv")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

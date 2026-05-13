@@ -82,7 +82,7 @@ func TestMonteCarloHandlerInvalidMethod(t *testing.T) {
 }
 
 func TestMonteCarloHandler(t *testing.T) {
-	body := `{"initial_rate":0.05,"drift":0.02,"volatility":0.15,"num_paths":100,"steps":10}`
+	body := `{"initial_rate":0.05,"drift":0.02,"volatility":0.15,"num_paths":100,"steps":10,"include_paths":true}`
 	req := httptest.NewRequest("POST", "/montecarlo", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -99,6 +99,30 @@ func TestMonteCarloHandler(t *testing.T) {
 	}
 	if len(resp.Paths) != 100 {
 		t.Errorf("len(paths) = %d, want 100", len(resp.Paths))
+	}
+}
+
+func TestMonteCarloHandlerNoPaths(t *testing.T) {
+	body := `{"initial_rate":0.05,"drift":0.02,"volatility":0.15,"num_paths":100,"steps":10}`
+	req := httptest.NewRequest("POST", "/montecarlo", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	(&Server{}).monteCarloHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp MonteCarloResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Paths != nil {
+		t.Errorf("Paths should be nil when include_paths is false")
+	}
+	if resp.Mean == 0 {
+		t.Error("Mean should be non-zero")
 	}
 }
 
