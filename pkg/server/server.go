@@ -3,12 +3,19 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 
+	"github.com/lubasinkal/v-star/pkg/concurrency"
 	"github.com/lubasinkal/v-star/pkg/mortality"
 	"github.com/lubasinkal/v-star/pkg/rates"
 	"github.com/lubasinkal/v-star/pkg/reader"
@@ -20,6 +27,7 @@ import (
 type Server struct {
 	addr             string
 	MortalityTableDir string
+	server           *http.Server
 }
 
 type PVRequest struct {
@@ -77,15 +85,66 @@ func New(addr string) *Server {
 }
 
 func (s *Server) Start() error {
-	http.HandleFunc("/health", s.healthHandler)
-	http.HandleFunc("/value", s.pvHandler)
-	http.HandleFunc("/montecarlo", s.monteCarloHandler)
-	http.HandleFunc("/convert-rate", s.convertRateHandler)
-	http.HandleFunc("/mortality/", s.mortalityHandler)
-	http.HandleFunc("/export/csv", s.exportCSVHandler)
-	http.HandleFunc("/export/report", s.exportReportHandler)
-	http.HandleFunc("/upload/csv", s.StreamCSVHandler)
-	return http.ListenAndServe(s.addr, nil)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", s.healthHandler)
+	mux.HandleFunc("/value", s.pvHandler)
+	mux.HandleFunc("/montecarlo", s.monteCarloHandler)
+	mux.HandleFunc("/convert-rate", s.convertRateHandler)
+	mux.HandleFunc("/mortality/", s.mortalityHandler)
+	mux.HandleFunc("/export/csv", s.exportCSVHandler)
+	mux.HandleFunc("/export/report", s.exportReportHandler)
+	mux.HandleFunc("/upload/csv", s.StreamCSVHandler)
+
+	s.server = &http.Server{
+		Addr:         s.addr,
+		Handler:      corsMiddleware(loggingMiddleware(mux)),
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	return s.server.ListenAndServe()
+}
+
+// StartWithGracefulShutdown starts the server and blocks until SIGINT/SIGTERM.
+func (s *Server) StartWithGracefulShutdown() error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		log.Printf("v-star server listening on %s", s.addr)
+		if err := s.Start(); err != nil && err != http.ErrServerClosed {
+			log.Printf("server error: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	stop()
+	log.Println("shutting down gracefully...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return s.server.Shutdown(shutdownCtx)
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -229,37 +288,10 @@ func processParallelPV(records []PVRecord, converter *rates.RateConverter, worke
 	if workers <= 0 {
 		workers = 4
 	}
-
-	type result struct{ pv float64 }
-	results := make(chan result, len(records))
-
-	chunkSize := len(records) / workers
-	if chunkSize < 100 {
-		chunkSize = len(records)
-		workers = 1
-	}
-
-	for w := 0; w < workers; w++ {
-		start := w * chunkSize
-		end := start + chunkSize
-		if w == workers-1 {
-			end = len(records)
-		}
-
-		go func(recs []PVRecord) {
-			var total float64
-			for _, rec := range recs {
-				total += converter.PresentValue(rec.SumAssured, rec.Term)
-			}
-			results <- result{total}
-		}(records[start:end])
-	}
-
-	var totalPV float64
-	for range workers {
-		totalPV += (<-results).pv
-	}
-	return totalPV
+	wp := concurrency.NewWorkerPool(workers, func(rec PVRecord) float64 {
+		return converter.PresentValue(rec.SumAssured, rec.Term)
+	})
+	return wp.ProcessBatch(records)
 }
 
 func (s *Server) StreamCSVHandler(w http.ResponseWriter, r *http.Request) {

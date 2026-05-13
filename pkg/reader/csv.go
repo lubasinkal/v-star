@@ -3,7 +3,6 @@ package reader
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -318,107 +317,14 @@ func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) er
 }
 
 // StreamCSVWithPV reads CSV in parallel and calculates PV for each row.
+// Delegates to StreamCensusWithPV for consistency.
 func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured float64, term int) float64) (float64, int) {
-	f, headerOffset, dataSize, delimiter, err := openCSV(filepath, opts)
-	if err != nil {
-		return 0, 0
+	streamOpts := StreamOptions{
+		CSVOptions: opts,
+		ChunkSize:  opts.Limit,
+		Workers:    runtime.NumCPU(),
 	}
-	defer f.Close()
-
-	if dataSize <= 0 {
-		return 0, 0
-	}
-
-	chunkThreshold := int64(opts.Limit)
-	if chunkThreshold <= 0 {
-		chunkThreshold = 100000
-	}
-
-	if dataSize < chunkThreshold*100 {
-		return streamCSVSequentialWithPV(f, opts, headerOffset, delimiter, pvFn)
-	}
-
-	numWorkers := max(min(runtime.NumCPU(), 8), 1)
-	jobs := buildChunks(headerOffset, dataSize, numWorkers)
-
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var totalPV float64
-	var totalCount int
-
-	for w := range numWorkers {
-		wg.Add(1)
-		go func(j csvJob) {
-			defer wg.Done()
-
-			localPV := 0.0
-			localCount := 0
-			limit := opts.Limit
-
-			processChunk(f, j, headerOffset, func(line []byte) {
-				if limit > 0 && localCount >= limit {
-					return
-				}
-				record, err := parseCensusFastBytes(line, delimiter)
-				if err == nil {
-					localPV += pvFn(record.SumAssured, record.Term)
-					localCount++
-				} else if opts.OnParseError != nil {
-					opts.OnParseError(-1, err)
-				}
-			})
-
-			mu.Lock()
-			totalPV += localPV
-			totalCount += localCount
-			mu.Unlock()
-		}(jobs[w])
-	}
-
-	wg.Wait()
-
-	return totalPV, totalCount
-}
-
-func streamCSVSequentialWithPV(f *os.File, opts CSVOptions, headerOffset int64, delimiter byte, pvFn func(sumAssured float64, term int) float64) (float64, int) {
-	_, err := f.Seek(headerOffset, io.SeekStart)
-	if err != nil {
-		return 0, 0
-	}
-
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 64*1024*1024), 64*1024*1024)
-
-	totalPV := 0.0
-	totalCount := 0
-	limit := opts.Limit
-
-	for scanner.Scan() {
-		if limit > 0 && totalCount >= limit {
-			break
-		}
-
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-		if len(line) > 0 && line[len(line)-1] == '\r' {
-			line = line[:len(line)-1]
-		}
-		if len(line) == 0 {
-			continue
-		}
-
-		record, err := parseCensusFastBytes(line, delimiter)
-		if err != nil {
-			continue
-		}
-
-		totalPV += pvFn(record.SumAssured, record.Term)
-		totalCount++
-	}
-
-	return totalPV, totalCount
+	return StreamCensusWithPV(filepath, streamOpts, pvFn)
 }
 
 func streamCSVSequentialStr(f *os.File, opts CSVOptions, headerOffset int64, delimiter byte, fn func(fields []string)) error {
