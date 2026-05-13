@@ -2,7 +2,6 @@ package reader
 
 import (
 	"bufio"
-	"errors"
 	"io"
 	"os"
 	"runtime"
@@ -297,4 +296,4 @@ func streamSequentialWithPV(f *os.File, opts StreamOptions, headerOffset int64, 
 	return totalPV, totalCount
 }
 
-var _ error = errors.New("")
+

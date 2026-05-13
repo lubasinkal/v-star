@@ -359,7 +359,6 @@ func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured floa
 			mu.Lock()
 			totalPV += localPV
 			totalCount += localCount
-			fmt.Fprintf(os.Stderr, "CHUNK %d: count=%d\n", j.id, localCount)
 			mu.Unlock()
 		}(jobs[w])
 	}

@@ -82,6 +82,7 @@ func (s *Server) Start() error {
 	http.HandleFunc("/mortality/", s.mortalityHandler)
 	http.HandleFunc("/export/csv", s.exportCSVHandler)
 	http.HandleFunc("/export/report", s.exportReportHandler)
+	http.HandleFunc("/upload/csv", s.StreamCSVHandler)
 	return http.ListenAndServe(s.addr, nil)
 }
 
@@ -255,7 +256,7 @@ func processParallelPV(records []PVRecord, converter *rates.RateConverter, worke
 	return totalPV
 }
 
-func StreamCSVHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) StreamCSVHandler(w http.ResponseWriter, r *http.Request) {
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

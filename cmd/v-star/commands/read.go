@@ -54,6 +54,8 @@ func Read(args []string) {
 			if val := strings.Split(arg, "=")[1]; val != "" {
 				if f, err := strconv.ParseFloat(val, 64); err == nil {
 					interest = f
+				} else {
+					fmt.Printf("Warning: invalid interest rate '%s', using default 0.05\n", val)
 				}
 			}
 		} else if strings.HasPrefix(arg, "--table=") || strings.HasPrefix(arg, "-table=") {

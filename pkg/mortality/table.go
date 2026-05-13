@@ -60,7 +60,7 @@ func (t *Table) Qx(age int) float64 {
 // Px returns the cumulative survival probability over term years from age.
 // Returns 1 for term <= 0, and 0 when age + term exceeds maxAge.
 func (t *Table) Px(age int, term int) float64 {
-	if age < 0 || term <= 0 {
+	if t == nil || age < 0 || term <= 0 {
 		return 1
 	}
 	endAge := age + term
@@ -77,7 +77,7 @@ func (t *Table) Px(age int, term int) float64 {
 // Ex returns the curtate expectation of life at the given age.
 // This is the sum of Px(age, year) for year >= 1 until maxAge is reached.
 func (t *Table) Ex(age int) float64 {
-	if age < 0 || age > t.maxAge {
+	if t == nil || age < 0 || age > t.maxAge {
 		return 0
 	}
 	ex := 0.0
@@ -89,17 +89,23 @@ func (t *Table) Ex(age int) float64 {
 
 // MaxAge returns the maximum age defined in the table.
 func (t *Table) MaxAge() int {
+	if t == nil {
+		return -1
+	}
 	return t.maxAge
 }
 
 // Name returns the table name.
 func (t *Table) Name() string {
+	if t == nil {
+		return ""
+	}
 	return t.name
 }
 
 // Lx returns the number of lives surviving to the given age from radix 100000.
 func (t *Table) Lx(age int) float64 {
-	if age < 0 || age > t.maxAge {
+	if t == nil || age < 0 || age > t.maxAge {
 		return 0
 	}
 	return t.lx[age]
@@ -136,22 +142,13 @@ func loadCSVToMemory(filepath string) (*Table, error) {
 	}
 	name := extractName(filepath)
 	qx := make([]float64, len(lines)-1)
-	for i := 1; i < len(lines); i++ {
-		fields := splitCSV(lines[i])
-		age := parseInt(fields[ageIdx])
-		if qxIdx >= 0 {
+	if qxIdx >= 0 {
+		for i := 1; i < len(lines); i++ {
+			fields := splitCSV(lines[i])
+			age := parseInt(fields[ageIdx])
 			qx[age] = parseFloat(fields[qxIdx])
-		} else if pxIdx >= 0 {
-			px := parseFloat(fields[pxIdx])
-			if age > 0 {
-				prevPx := qx[age-1]
-				if prevPx > 0 {
-					qx[age-1] = 1 - px/prevPx
-				}
-			}
 		}
-	}
-	if pxIdx >= 0 {
+	} else if pxIdx >= 0 {
 		for i := 1; i < len(lines); i++ {
 			fields := splitCSV(lines[i])
 			age := parseInt(fields[ageIdx])

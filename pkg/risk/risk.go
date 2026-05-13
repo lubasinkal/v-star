@@ -1,6 +1,7 @@
 package risk
 
 import (
+	"math"
 	"slices"
 )
 
@@ -93,7 +94,7 @@ func ComputeReport(losses []float64) RiskReport {
 
 	return RiskReport{
 		Mean:   mean,
-		StdDev: sqrt(variance),
+		StdDev: math.Sqrt(variance),
 		Min:    min,
 		Max:    max,
 		VaR95:  VaR(losses, 0.95),
@@ -103,13 +104,4 @@ func ComputeReport(losses []float64) RiskReport {
 	}
 }
 
-func sqrt(x float64) float64 {
-	if x <= 0 {
-		return 0
-	}
-	z := x
-	for i := 0; i < 100; i++ {
-		z = (z + x/z) / 2
-	}
-	return z
-}
+
