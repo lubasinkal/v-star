@@ -9,7 +9,7 @@ import (
 	"github.com/lubasinkal/v-star/pkg/rates"
 )
 
-const version = "0.5.0"
+const version = "0.5.2"
 
 func main() {
 	interest := flag.Float64("i", 0.05, "effective annual interest rate (e.g., 0.05 for 5%)")
