@@ -1,15 +1,21 @@
 package concurrency
 
 import (
+	"context"
 	"testing"
 
 	"github.com/lubasinkal/v-star/pkg/rates"
 	"github.com/lubasinkal/v-star/pkg/reader"
 )
 
+func pvFn(converter *rates.RateConverter) func(reader.CensusRecord) float64 {
+	return func(r reader.CensusRecord) float64 {
+		return converter.PresentValue(r.SumAssured, r.Term)
+	}
+}
+
 func TestProcessBatch_EmptyRecords(t *testing.T) {
-	converter := rates.NewRateConverter(0.05)
-	got := ProcessBatch(nil, converter, 4)
+	got := ProcessBatch(nil, rates.NewRateConverter(0.05), 4)
 	if got != 0 {
 		t.Errorf("ProcessBatch(nil) = %v, want 0", got)
 	}
@@ -61,7 +67,6 @@ func TestProcessBatch_ParallelMatchesSequential(t *testing.T) {
 	sequential := ProcessBatch(records, converter, 1)
 	parallel := ProcessBatch(records, converter, 8)
 
-	// Floating point accumulation order differs, use relative tolerance
 	diff := sequential - parallel
 	if diff < 0 {
 		diff = -diff
@@ -73,8 +78,7 @@ func TestProcessBatch_ParallelMatchesSequential(t *testing.T) {
 }
 
 func TestNewWorkerPool_DefaultWorkers(t *testing.T) {
-	converter := rates.NewRateConverter(0.05)
-	wp := NewWorkerPool(0, converter)
+	wp := NewWorkerPool(0, func(r reader.CensusRecord) float64 { return 0 })
 	if wp == nil {
 		t.Error("NewWorkerPool returned nil")
 	}
@@ -82,7 +86,7 @@ func TestNewWorkerPool_DefaultWorkers(t *testing.T) {
 
 func TestWorkerPool_ProcessBatch(t *testing.T) {
 	converter := rates.NewRateConverter(0.05)
-	wp := NewWorkerPool(4, converter)
+	wp := NewWorkerPool(4, pvFn(converter))
 	records := []reader.CensusRecord{
 		{Age: 30, SumAssured: 100000, Term: 20},
 	}
@@ -91,5 +95,35 @@ func TestWorkerPool_ProcessBatch(t *testing.T) {
 	expected := converter.PresentValue(100000, 20)
 	if got != expected {
 		t.Errorf("WorkerPool.ProcessBatch = %v, want %v", got, expected)
+	}
+}
+
+func TestWorkerPool_ProcessBatchContext(t *testing.T) {
+	converter := rates.NewRateConverter(0.05)
+	wp := NewWorkerPool(4, pvFn(converter))
+	records := []reader.CensusRecord{
+		{Age: 30, SumAssured: 100000, Term: 20},
+	}
+
+	got, err := wp.ProcessBatchContext(context.Background(), records)
+	if err != nil {
+		t.Fatalf("ProcessBatchContext: %v", err)
+	}
+	expected := converter.PresentValue(100000, 20)
+	if got != expected {
+		t.Errorf("ProcessBatchContext = %v, want %v", got, expected)
+	}
+}
+
+func TestWorkerPool_ProcessBatchContext_Cancelled(t *testing.T) {
+	wp := NewWorkerPool(4, func(r reader.CensusRecord) float64 { return 1 })
+	records := make([]reader.CensusRecord, 10000)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := wp.ProcessBatchContext(ctx, records)
+	if err == nil {
+		t.Error("expected error from cancelled context")
 	}
 }

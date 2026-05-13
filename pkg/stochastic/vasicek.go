@@ -10,11 +10,11 @@ import (
 // where a is the speed of mean reversion, b is the long-term mean,
 // and sigma is the volatility.
 type VasicekGenerator struct {
-	longTermMean    float64 // b
-	meanReversion   float64 // a
-	volatility      float64 // sigma
-	initialRate     float64
-	rng             *rand.Rand
+	longTermMean  float64 // b
+	meanReversion float64 // a
+	volatility    float64 // sigma
+	initialRate   float64
+	rng           *rand.Rand
 }
 
 // NewVasicekGenerator creates a new VasicekGenerator with the given parameters.

@@ -30,7 +30,7 @@ func (a *AnnuityCalculator) WholeLifeImmediate(age int, amount float64) float64 
 	maxAge := a.mort.MaxAge()
 	sum := 0.0
 	px := 1.0
-	for t := 1; age+t-1 <= maxAge; t++ {
+	for t := 1; t <= maxAge-age; t++ {
 		px *= 1 - a.mort.Qx(age+t-1)
 		if px <= 0 {
 			break
@@ -49,10 +49,11 @@ func (a *AnnuityCalculator) TermImmediate(age int, term int, amount float64) flo
 	maxAge := a.mort.MaxAge()
 	sum := 0.0
 	px := 1.0
-	for t := 1; t <= term; t++ {
-		if age+t-1 > maxAge {
-			break
-		}
+	limit := term
+	if maxAge-age < limit {
+		limit = maxAge - age
+	}
+	for t := 1; t <= limit; t++ {
 		px *= 1 - a.mort.Qx(age+t-1)
 		if px <= 0 {
 			break
@@ -71,7 +72,7 @@ func (a *AnnuityCalculator) WholeLifeDue(age int, amount float64) float64 {
 	maxAge := a.mort.MaxAge()
 	sum := a.discount.Discount(0)
 	px := 1.0
-	for t := 1; age+t-1 <= maxAge; t++ {
+	for t := 1; t <= maxAge-age; t++ {
 		px *= 1 - a.mort.Qx(age+t-1)
 		if px <= 0 {
 			break
@@ -90,10 +91,11 @@ func (a *AnnuityCalculator) TermDue(age int, term int, amount float64) float64 {
 	maxAge := a.mort.MaxAge()
 	sum := a.discount.Discount(0)
 	px := 1.0
-	for t := 1; t < term; t++ {
-		if age+t-1 > maxAge {
-			break
-		}
+	limit := term - 1
+	if maxAge-age < limit {
+		limit = maxAge - age
+	}
+	for t := 1; t <= limit; t++ {
 		px *= 1 - a.mort.Qx(age+t-1)
 		if px <= 0 {
 			break
@@ -158,7 +160,7 @@ func (a *AnnuityCalculator) WholeLifeNSP(age int, sumAssured float64) float64 {
 	}
 	maxAge := a.mort.MaxAge()
 	nsp := 0.0
-	for t := 1; age+t-1 <= maxAge; t++ {
+	for t := 1; t <= maxAge-age+1; t++ {
 		qx := a.mort.Qx(age + t - 1)
 		if qx <= 0 {
 			continue
@@ -178,10 +180,11 @@ func (a *AnnuityCalculator) TermNSP(age int, term int, sumAssured float64) float
 	maxAge := a.mort.MaxAge()
 	nsp := 0.0
 	px := 1.0
-	for t := 1; t <= term; t++ {
-		if age+t-1 > maxAge {
-			break
-		}
+	limit := term
+	if maxAge-age+1 < limit {
+		limit = maxAge - age + 1
+	}
+	for t := 1; t <= limit; t++ {
 		qx := a.mort.Qx(age + t - 1)
 		if qx > 0 {
 			nsp += px * qx * a.discount.Discount(t)

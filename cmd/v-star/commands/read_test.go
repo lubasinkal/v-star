@@ -7,6 +7,13 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	exit = func(code int) {
+		// Prevent os.Exit during tests
+	}
+	os.Exit(m.Run())
+}
+
 func writeTestCSV(t *testing.T, lines []string) string {
 	t.Helper()
 	dir := t.TempDir()

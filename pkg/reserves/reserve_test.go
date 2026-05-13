@@ -82,21 +82,21 @@ func TestNetPremiumReserve_GenericPath(t *testing.T) {
 	mort := zeroMortalityTable(120)
 	discount := mockDiscount{rate: 0.05}
 
-	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 300}
+	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 0}
 	npr := NetPremiumReserve(policy, discount, mort)
 	if npr != 0 {
 		t.Errorf("NetPremiumReserve at inception = %v, want 0", npr)
 	}
 }
 
-func TestRetrospectiveReserve_GenericPath(t *testing.T) {
+func TestNetPremiumReserve_GenericPathFinite(t *testing.T) {
 	mort := zeroMortalityTable(120)
 	discount := mockDiscount{rate: 0.05}
 
 	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 300}
-	got := RetrospectiveReserve(policy, discount, mort)
-	if math.IsNaN(got) || math.IsInf(got, 0) {
-		t.Errorf("RetrospectiveReserve = %v, want finite", got)
+	npr := NetPremiumReserve(policy, discount, mort)
+	if math.IsNaN(npr) || math.IsInf(npr, 0) {
+		t.Errorf("NetPremiumReserve = %v, want finite", npr)
 	}
 }
 

@@ -295,5 +295,3 @@ func streamSequentialWithPV(f *os.File, opts StreamOptions, headerOffset int64, 
 
 	return totalPV, totalCount
 }
-
-

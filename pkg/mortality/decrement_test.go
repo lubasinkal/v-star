@@ -40,18 +40,19 @@ func TestDecrementTable_Px(t *testing.T) {
 
 func TestDecrementTable_MaxAge(t *testing.T) {
 	t1 := NewTable("death", []float64{0.01, 0.02, 0.03, 0.04})
-	t2 := NewTable("lapse", []float64{0.05, 0.04})
+	t2 := NewTable("lapse", []float64{0.05, 0.04, 0.03, 0.02})
 	dt := NewDecrementTable([]*Table{t1, t2}, nil)
-	if dt.MaxAge() != 2 {
-		t.Errorf("MaxAge() = %d, want 2", dt.MaxAge())
+	if dt.MaxAge() != 3 {
+		t.Errorf("MaxAge() = %d, want 3", dt.MaxAge())
 	}
 }
 
 func TestDecrementTable_SingleTable(t *testing.T) {
 	t1 := NewTable("death", []float64{0.01, 0.02})
 	dt := NewDecrementTable([]*Table{t1}, nil)
-	if dt.Qx(0) != 0.01 {
-		t.Errorf("Single table Qx = %v, want 0.01", dt.Qx(0))
+	got := dt.Qx(0)
+	if math.Abs(got-0.01) > 1e-10 {
+		t.Errorf("Single table Qx = %.15f, want 0.01", got)
 	}
 }
 

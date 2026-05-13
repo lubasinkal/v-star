@@ -5,7 +5,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -25,9 +24,9 @@ import (
 )
 
 type Server struct {
-	addr             string
+	addr              string
 	MortalityTableDir string
-	server           *http.Server
+	server            *http.Server
 }
 
 type PVRequest struct {

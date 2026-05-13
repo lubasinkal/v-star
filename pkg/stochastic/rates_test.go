@@ -84,11 +84,15 @@ func TestDifferentSeeds(t *testing.T) {
 }
 
 func TestRateGenerator_ZeroVolatility(t *testing.T) {
+	// GBM uses continuous compounding: r(t+1) = r(t) * exp((mu - sigma^2/2)*dt)
+	// With sigma=0: r(t+1) = r(t) * exp(mu*dt)
 	rg := NewRateGenerator(0.05, 0.02, 0)
 	path := rg.GeneratePath(5, 1.0)
+	expected := 0.05
 	for i := 1; i <= 5; i++ {
-		if path[i] != 0.05 {
-			t.Errorf("Zero vol: expected rate %.6f at step %d, got %.6f", 0.05, i, path[i])
+		expected *= 1.0202013400267558 // exp(0.02)
+		if path[i] != expected {
+			t.Errorf("Step %d: expected %.10f, got %.10f", i, expected, path[i])
 		}
 	}
 }

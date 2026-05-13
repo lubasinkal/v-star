@@ -16,11 +16,13 @@ import (
 	"github.com/lubasinkal/v-star/pkg/writer"
 )
 
+var exit = os.Exit
+
 func Read(args []string) {
 	if len(args) < 2 {
 		fmt.Println("Usage: v-star read <file.csv> [--benchmark] [--limit=N] [--output=console|json|csv|report]")
 		fmt.Println("       v-star read <file.csv> --table=<mortality.csv> [--interest=0.05]")
-		os.Exit(1)
+		exit(1)
 	}
 
 	filepath := args[1]
@@ -71,14 +73,14 @@ func Read(args []string) {
 		readWithoutMortality(filepath, interest, header, limit, output, benchmark, start)
 	}
 
-	os.Exit(0)
+	exit(0)
 }
 
 func readWithMortality(filepath string, interest float64, tablePath string, header bool, limit int, output string, benchmark bool, start time.Time) {
 	mort, err := mortality.LoadCSV(tablePath)
 	if err != nil {
 		fmt.Printf("Error loading mortality table: %v\n", err)
-		os.Exit(1)
+		exit(1)
 	}
 
 	calc := annuities.NewAnnuityCalculator(&rates.RateConverter{EffectiveRate: interest}, mort)
@@ -159,7 +161,7 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		exit(1)
 	}
 
 	duration := time.Since(start)
@@ -178,7 +180,7 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 		}
 		if err := writer.StreamJSON(jsonRecords, os.Stdout); err != nil {
 			fmt.Printf("Error writing JSON: %v\n", err)
-			os.Exit(1)
+			exit(1)
 		}
 		fmt.Println()
 	} else if output == "csv" {
@@ -195,7 +197,7 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 		}
 		if err := writer.StreamCSV(csvRecords, os.Stdout); err != nil {
 			fmt.Printf("Error writing CSV: %v\n", err)
-			os.Exit(1)
+			exit(1)
 		}
 		fmt.Println()
 	} else if output == "report" {
@@ -209,7 +211,7 @@ func readWithMortality(filepath string, interest float64, tablePath string, head
 		}
 		if err := writer.StreamTextReport(data, os.Stdout); err != nil {
 			fmt.Printf("Error writing report: %v\n", err)
-			os.Exit(1)
+			exit(1)
 		}
 	} else {
 		fmt.Printf("Processed %d records with mortality table: %s\n", count, mort.Name())
@@ -255,7 +257,7 @@ func readWithoutMortality(filepath string, interest float64, header bool, limit 
 	if output == "json" {
 		if err := writer.StreamJSON(allResults, os.Stdout); err != nil {
 			fmt.Printf("Error writing JSON: %v\n", err)
-			os.Exit(1)
+			exit(1)
 		}
 		fmt.Println()
 	} else if output == "csv" {
@@ -272,7 +274,7 @@ func readWithoutMortality(filepath string, interest float64, header bool, limit 
 		}
 		if err := writer.StreamCSV(csvRecords, os.Stdout); err != nil {
 			fmt.Printf("Error writing CSV: %v\n", err)
-			os.Exit(1)
+			exit(1)
 		}
 		fmt.Println()
 	} else if output == "report" {
@@ -286,7 +288,7 @@ func readWithoutMortality(filepath string, interest float64, header bool, limit 
 		}
 		if err := writer.StreamTextReport(data, os.Stdout); err != nil {
 			fmt.Printf("Error writing report: %v\n", err)
-			os.Exit(1)
+			exit(1)
 		}
 	} else {
 		if benchmark {

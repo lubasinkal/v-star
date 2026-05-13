@@ -121,5 +121,3 @@ func ComputeReport(losses []float64) RiskReport {
 		CTE99:          cteSorted(sorted, 0.99),
 	}
 }
-
-
