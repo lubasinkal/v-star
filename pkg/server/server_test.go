@@ -1,7 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -238,6 +241,50 @@ func TestExportReportHandlerInvalidMethod(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestStreamCSVHandler(t *testing.T) {
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, _ := writer.CreateFormFile("file", "test.csv")
+	part.Write([]byte("age,sex,policy_type,sum_assured,term\n30,M,term,1000,1\n"))
+	writer.WriteField("rate", "0.05")
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/upload/csv", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+
+	s := &Server{MortalityTableDir: "testdata"}
+	s.StreamCSVHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "present_value") {
+		t.Errorf("CSV output missing header: %s", w.Body.String())
+	}
+}
+
+func TestStreamCSVHandler_NoFile(t *testing.T) {
+	req := httptest.NewRequest("POST", "/upload/csv", nil)
+	w := httptest.NewRecorder()
+	s := &Server{}
+	s.StreamCSVHandler(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestMortalityHandler_WithTable(t *testing.T) {
+	// No mortality table file to test against, so expect not-found
+	req := httptest.NewRequest("GET", "/mortality/testtable", nil)
+	w := httptest.NewRecorder()
+	s := &Server{MortalityTableDir: "/nonexistent"}
+	s.mortalityHandler(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
 	}
 }
 

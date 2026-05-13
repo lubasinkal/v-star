@@ -50,16 +50,65 @@ func TestProspectiveReserve_ZeroDifference(t *testing.T) {
 	}
 }
 
+type mockDiscount struct {
+	rate float64
+}
+
+func (m mockDiscount) Discount(term int) float64 {
+	if term <= 0 {
+		return 1
+	}
+	v := 1 / (1 + m.rate)
+	result := 1.0
+	for range term {
+		result *= v
+	}
+	return result
+}
+
 func TestProspectiveReserve_GenericPath(t *testing.T) {
 	mort := zeroMortalityTable(120)
-	converter := rates.NewRateConverter(0.05)
+	discount := mockDiscount{rate: 0.05}
 
-	// Use a custom DiscountFactor to test the generic fallback
 	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 300}
 
-	got := ProspectiveReserve(policy, converter, mort)
+	got := ProspectiveReserve(policy, discount, mort)
 	if got <= 0 {
 		t.Errorf("ProspectiveReserve = %v, want > 0", got)
+	}
+}
+
+func TestNetPremiumReserve_GenericPath(t *testing.T) {
+	mort := zeroMortalityTable(120)
+	discount := mockDiscount{rate: 0.05}
+
+	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 300}
+	npr := NetPremiumReserve(policy, discount, mort)
+	if npr != 0 {
+		t.Errorf("NetPremiumReserve at inception = %v, want 0", npr)
+	}
+}
+
+func TestRetrospectiveReserve_GenericPath(t *testing.T) {
+	mort := zeroMortalityTable(120)
+	discount := mockDiscount{rate: 0.05}
+
+	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 300}
+	got := RetrospectiveReserve(policy, discount, mort)
+	if math.IsNaN(got) || math.IsInf(got, 0) {
+		t.Errorf("RetrospectiveReserve = %v, want finite", got)
+	}
+}
+
+func TestGrossPremiumReserve_GenericPath(t *testing.T) {
+	mort := zeroMortalityTable(120)
+	discount := mockDiscount{rate: 0.05}
+
+	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 300}
+	gpr := GrossPremiumReserve(policy, 100, discount, mort)
+	npr := NetPremiumReserve(policy, discount, mort)
+	if gpr < npr {
+		t.Errorf("GPR(%v) < NPR(%v)", gpr, npr)
 	}
 }
 

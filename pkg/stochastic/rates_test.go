@@ -83,6 +83,48 @@ func TestDifferentSeeds(t *testing.T) {
 	}
 }
 
+func TestRateGenerator_ZeroVolatility(t *testing.T) {
+	rg := NewRateGenerator(0.05, 0.02, 0)
+	path := rg.GeneratePath(5, 1.0)
+	for i := 1; i <= 5; i++ {
+		if path[i] != 0.05 {
+			t.Errorf("Zero vol: expected rate %.6f at step %d, got %.6f", 0.05, i, path[i])
+		}
+	}
+}
+
+func TestRateGenerator_ZeroDrift(t *testing.T) {
+	rg := NewRateGenerator(0.05, 0, 0.1)
+	path := rg.GeneratePath(100, 1.0)
+	if path[0] != 0.05 {
+		t.Errorf("Initial rate should be 0.05, got %f", path[0])
+	}
+}
+
+func TestRateGenerator_NegativeDrift(t *testing.T) {
+	rg := NewRateGenerator(0.05, -0.1, 0.1)
+	path := rg.GeneratePath(50, 1.0)
+	if path[0] != 0.05 {
+		t.Errorf("Initial rate should be 0.05, got %f", path[0])
+	}
+}
+
+func TestRateGenerator_SinglePath(t *testing.T) {
+	rg := NewRateGenerator(0.03, 0.01, 0.2)
+	path := rg.GeneratePath(1, 1.0)
+	if len(path) != 2 {
+		t.Errorf("Single step path should have length 2, got %d", len(path))
+	}
+}
+
+func TestRateGenerator_ExtremeVolatility(t *testing.T) {
+	rg := NewRateGenerator(0.05, 0, 0.5)
+	path := rg.GeneratePath(10, 1.0)
+	if path[0] != 0.05 {
+		t.Errorf("Initial rate should be 0.05, got %f", path[0])
+	}
+}
+
 func BenchmarkGeneratePaths(b *testing.B) {
 	rg := NewRateGeneratorWithSeed(0.05, 0.02, 0.15, 42)
 	for b.Loop() {

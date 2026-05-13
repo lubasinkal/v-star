@@ -140,6 +140,62 @@ func TestFormatAssumptions(t *testing.T) {
 	}
 }
 
+func TestGenerateTextReport(t *testing.T) {
+	data := ReportData{
+		Title:             "Generated Report Test",
+		InterestRate:      0.04,
+		RecordCount:       50,
+		TotalPresentValue: 2500000,
+		Assumptions: map[string]string{
+			"Interest Rate":   "4.00%",
+			"Mortality Table": "IAM2012",
+		},
+	}
+	report, err := GenerateTextReport(data)
+	if err != nil {
+		t.Fatalf("GenerateTextReport failed: %v", err)
+	}
+	if !strings.Contains(report, "Generated Report Test") {
+		t.Errorf("Title not found")
+	}
+	if !strings.Contains(report, "Records Processed: 50") {
+		t.Errorf("Record count not found")
+	}
+}
+
+func TestGenerateTextReportWithRisk(t *testing.T) {
+	data := ReportData{
+		Title:             "Risk Report Generated",
+		InterestRate:      0.05,
+		RecordCount:       500,
+		TotalPresentValue: 10000000,
+		RiskReport: &risk.RiskReport{
+			Mean: 50000, StdDev: 8000, Min: 35000, Max: 65000,
+			VaR95: 62000, VaR99: 64000, CTE95: 63000, CTE99: 64500,
+		},
+	}
+	report, err := GenerateTextReport(data)
+	if err != nil {
+		t.Fatalf("GenerateTextReport failed: %v", err)
+	}
+	if !strings.Contains(report, "Risk Report Generated") {
+		t.Errorf("Title not found")
+	}
+	if !strings.Contains(report, "VaR 95%") {
+		t.Errorf("VaR 95%% not found")
+	}
+}
+
+func TestGenerateTextReportEmpty(t *testing.T) {
+	report, err := GenerateTextReport(ReportData{})
+	if err != nil {
+		t.Fatalf("GenerateTextReport failed: %v", err)
+	}
+	if !strings.Contains(report, "Actuarial Valuation Report") {
+		t.Errorf("Default title not found")
+	}
+}
+
 func TestSanitizeString(t *testing.T) {
 	tests := []struct {
 		input    string
