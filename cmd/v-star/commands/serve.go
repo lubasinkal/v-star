@@ -24,6 +24,9 @@ func Serve(args []string) {
 			fmt.Println("  POST /montecarlo          - Run Monte Carlo simulation")
 			fmt.Println("  POST /convert-rate        - Convert between nominal/effective rates")
 			fmt.Println("  GET  /mortality/{table}   - Get mortality table info")
+			fmt.Println("  POST /export/csv          - Export valuation records as CSV")
+			fmt.Println("  POST /export/report       - Export valuation as text report")
+			fmt.Println("  POST /upload/csv          - Upload CSV file for valuation")
 			os.Exit(0)
 		}
 	}

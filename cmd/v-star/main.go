@@ -184,6 +184,7 @@ Endpoints:
   GET  /mortality/{table}   - Get mortality table info
   POST /export/csv          - Export valuation records as CSV
   POST /export/report       - Export valuation report as text
+  POST /upload/csv          - Upload CSV file for valuation (multipart)
 
 Examples:
   v-star serve
@@ -193,7 +194,8 @@ API Usage (curl):
   curl -X POST http://localhost:8080/value -d '{"records":[...]}'
   curl -X POST http://localhost:8080/montecarlo -d '{"paths":100000,"steps":10}'
   curl -X POST http://localhost:8080/export/csv -d '{"records":[...]}'
-  curl -X POST http://localhost:8080/export/report -d '{"records":[...]'`)
+  curl -X POST http://localhost:8080/export/report -d '{"records":[...]}'
+  curl -X POST http://localhost:8080/upload/csv -F "file=@policies.csv" -F "rate=0.05"`)
 	default:
 		fmt.Printf("Error: unknown subcommand '%s'\n\n", subcommand)
 		printGeneralUsage()
