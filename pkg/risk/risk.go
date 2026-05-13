@@ -60,14 +60,17 @@ func ExpectedShortfall(losses []float64, confidence float64) float64 {
 
 // RiskReport contains comprehensive risk metrics from a simulation.
 type RiskReport struct {
-	Mean   float64
-	StdDev float64
-	Min    float64
-	Max    float64
-	VaR95  float64
-	VaR99  float64
-	CTE95  float64
-	CTE99  float64
+	Mean           float64
+	StdDev         float64
+	Min            float64
+	Max            float64
+	VaR95          float64
+	VaR99          float64
+	CTE95          float64
+	CTE99          float64
+	StdError       float64
+	Confidence95Lo float64
+	Confidence95Hi float64
 }
 
 // ComputeReport generates a full risk report from simulated losses.
@@ -101,15 +104,21 @@ func ComputeReport(losses []float64) RiskReport {
 	copy(sorted, losses)
 	slices.Sort(sorted)
 
+	stdDev := math.Sqrt(variance)
+	stdErr := stdDev / math.Sqrt(n)
+
 	return RiskReport{
-		Mean:   mean,
-		StdDev: math.Sqrt(variance),
-		Min:    min,
-		Max:    max,
-		VaR95:  varSorted(sorted, 0.95),
-		VaR99:  varSorted(sorted, 0.99),
-		CTE95:  cteSorted(sorted, 0.95),
-		CTE99:  cteSorted(sorted, 0.99),
+		Mean:           mean,
+		StdDev:         stdDev,
+		StdError:       stdErr,
+		Confidence95Lo: mean - 1.96*stdErr,
+		Confidence95Hi: mean + 1.96*stdErr,
+		Min:            min,
+		Max:            max,
+		VaR95:          varSorted(sorted, 0.95),
+		VaR99:          varSorted(sorted, 0.99),
+		CTE95:          cteSorted(sorted, 0.95),
+		CTE99:          cteSorted(sorted, 0.99),
 	}
 }
 

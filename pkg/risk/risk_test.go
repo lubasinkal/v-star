@@ -104,6 +104,24 @@ func TestComputeReport(t *testing.T) {
 	}
 }
 
+func TestComputeReport_ConfidenceIntervals(t *testing.T) {
+	losses := []float64{10, 20, 30, 40, 50, 60, 70, 80, 90, 100}
+	report := ComputeReport(losses)
+
+	if report.StdError <= 0 {
+		t.Errorf("StdError = %v, want > 0", report.StdError)
+	}
+	if report.Confidence95Lo >= report.Confidence95Hi {
+		t.Errorf("CI: lo=%v >= hi=%v", report.Confidence95Lo, report.Confidence95Hi)
+	}
+	if report.Confidence95Lo >= report.Mean {
+		t.Errorf("CI lo (%v) should be < mean (%v)", report.Confidence95Lo, report.Mean)
+	}
+	if report.Confidence95Hi <= report.Mean {
+		t.Errorf("CI hi (%v) should be > mean (%v)", report.Confidence95Hi, report.Mean)
+	}
+}
+
 func TestComputeReport_Empty(t *testing.T) {
 	report := ComputeReport(nil)
 	if report.Mean != 0 || report.StdDev != 0 || report.VaR95 != 0 {
