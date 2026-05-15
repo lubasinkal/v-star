@@ -16,6 +16,22 @@ import (
 // ColumnMap maps CSV column names to their positional indices.
 type ColumnMap map[string]int
 
+func readHeadersAndOffset(filepath string, delimiter byte) ([]string, int64, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	if !scanner.Scan() {
+		return nil, 0, scanner.Err()
+	}
+	line := scanner.Bytes()
+	headerFields := parseFields(bytes.Clone(line), delimiter)
+	headerOffset := int64(len(line)) + 1
+	return headerFields, headerOffset, nil
+}
+
 // StreamCensus reads a census CSV file and yields CensusRecords.
 // Uses fast byte-level parallel path when columns match default order,
 // falls back to generic reader for non-standard layouts.
@@ -25,29 +41,18 @@ func StreamCensus(filepath string, opts CSVOptions, fn func(CensusRecord)) error
 		delimiter = ','
 	}
 
-	// Detect column order from header
 	var colMap ColumnMap
 	var useFastPath bool
 	headerOffset := int64(0)
 
 	if opts.Header {
-		headers, err := GetHeaders(filepath, delimiter)
+		headers, hoff, err := readHeadersAndOffset(filepath, delimiter)
 		if err != nil {
 			return err
 		}
+		headerOffset = hoff
 		colMap = buildColumnMap(headers)
 		useFastPath = isDefaultColumnOrder(colMap)
-
-		// Calculate header offset
-		f, err := os.Open(filepath)
-		if err != nil {
-			return err
-		}
-		scanner := bufio.NewScanner(f)
-		if scanner.Scan() {
-			headerOffset = int64(len(scanner.Bytes())) + 1
-		}
-		f.Close()
 	} else {
 		useFastPath = true
 		colMap = defaultColumnMap()
@@ -107,87 +112,36 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 		return scanner.Err()
 	}
 
-	// Parallel: each goroutine reads its chunk via ReadAt (parallel-safe)
-	chunkSize := dataSize / int64(numWorkers)
-	overlap := int64(8192)
-	type batchResult struct {
-		records []CensusRecord
-	}
-	results := make([]batchResult, numWorkers)
+	results := make([][]CensusRecord, numWorkers)
 	var wg sync.WaitGroup
 
+	jobs := buildChunks(headerOffset, dataSize, numWorkers)
 	for w := range numWorkers {
-		start := headerOffset + int64(w)*chunkSize
-		end := start + chunkSize
-		hasOverlap := end < fileSize
-
-		if hasOverlap {
-			end = min(end+overlap, fileSize)
-		}
-
 		wg.Add(1)
-		go func(idx int, start, end int64) {
+		go func(w int) {
 			defer wg.Done()
-
-			// Read chunk into pre-allocated buffer
-			bufSize := int(end - start)
-			buf := make([]byte, bufSize)
-			n, err := f.ReadAt(buf, start)
-			if err != nil && err != io.EOF {
-				return
-			}
-			buf = buf[:n]
-
-			originalEnd := int(chunkSize)
-
-			// Skip partial line at start (except for first chunk)
-			offset := 0
-			if start > headerOffset && len(buf) > 0 && buf[0] != '\n' {
-				i := bytes.IndexByte(buf, '\n')
-				if i >= 0 {
-					offset = i + 1
-				}
-			}
-
-			// Pre-allocate batch based on estimated line count (~45 bytes/line)
-			estLines := max(originalEnd/45, 1024)
+			estLines := max(int(jobs[w].limit)/45, 1024)
 			batch := make([]CensusRecord, 0, estLines)
 
-			processedBytes := offset
-			for processedBytes < originalEnd && processedBytes < len(buf) {
-				i := bytes.IndexByte(buf[processedBytes:], '\n')
-				var line []byte
-				if i < 0 {
-					break
-				}
-				line = buf[processedBytes : processedBytes+i]
-				processedBytes += i + 1
-
-				if len(line) == 0 {
-					continue
-				}
-				if line[len(line)-1] == '\r' {
-					line = line[:len(line)-1]
-				}
-
+			processChunk(f, jobs[w], headerOffset, func(line []byte) {
 				record, err := parseCensusFastBytes(line, delimiter)
 				if err == nil {
 					batch = append(batch, record)
 				} else if opts.OnParseError != nil {
 					opts.OnParseError(-1, err)
 				}
-			}
-			results[idx].records = batch
-		}(w, start, end)
+			})
+
+			results[w] = batch
+		}(w)
 	}
 
 	wg.Wait()
 
-	// Yield results in order
 	count := 0
 	limit := opts.Limit
 	for _, batch := range results {
-		for _, record := range batch.records {
+		for _, record := range batch {
 			if limit > 0 && count >= limit {
 				return nil
 			}
@@ -423,6 +377,11 @@ func policyString(b []byte) string {
 		if b[0] == 'e' && b[1] == 'n' && b[2] == 'd' && b[3] == 'o' &&
 			b[4] == 'w' && b[5] == 'm' && b[6] == 'e' && b[7] == 'n' && b[8] == 't' {
 			return "endowment"
+		}
+	case 10:
+		if b[0] == 'w' && b[1] == 'h' && b[2] == 'o' && b[3] == 'l' && b[4] == 'e' &&
+			b[5] == '_' && b[6] == 'l' && b[7] == 'i' && b[8] == 'f' && b[9] == 'e' {
+			return "whole_life"
 		}
 	}
 	return string(b)
