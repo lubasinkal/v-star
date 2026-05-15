@@ -15,6 +15,7 @@ type RateGenerator struct {
 	initialRate float64
 	mu          float64
 	sigma       float64
+	driftOffset float64
 }
 
 // NewRateGenerator creates a new rate generator with a random seed.
@@ -24,6 +25,7 @@ func NewRateGenerator(initialRate, mu, sigma float64) *RateGenerator {
 		initialRate: initialRate,
 		mu:          mu,
 		sigma:       sigma,
+		driftOffset: mu - 0.5*sigma*sigma,
 		rng:         rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 	}
 }
@@ -35,25 +37,23 @@ func NewRateGeneratorWithSeed(initialRate, mu, sigma float64, seed uint64) *Rate
 		initialRate: initialRate,
 		mu:          mu,
 		sigma:       sigma,
+		driftOffset: mu - 0.5*sigma*sigma,
 		rng:         rand.New(rand.NewPCG(seed, 0)),
 	}
 }
 
 // GeneratePath generates a single interest rate path using geometric Brownian motion.
 // S(t+1) = S(t) * exp((mu - 0.5*sigma^2)*dt + sigma*sqrt(dt)*Z)
-// where Z is a standard normal random variable via Box-Muller transform.
+// where Z is a standard normal random variable via the Ziggurat method.
 func (rg *RateGenerator) GeneratePath(steps int, dt float64) RatePath {
 	path := make(RatePath, steps+1)
 	path[0] = rg.initialRate
 
-	for i := 1; i <= steps; i++ {
-		u1 := rg.rng.Float64()
-		u2 := rg.rng.Float64()
-		z := math.Sqrt(-2*math.Log(u1)) * math.Cos(2*math.Pi*u2)
+	driftTerm := rg.driftOffset * dt
+	diffusionFactor := rg.sigma * math.Sqrt(dt)
 
-		drift := (rg.mu - 0.5*rg.sigma*rg.sigma) * dt
-		diffusion := rg.sigma * math.Sqrt(dt) * z
-		path[i] = path[i-1] * math.Exp(drift+diffusion)
+	for i := 1; i <= steps; i++ {
+		path[i] = path[i-1] * math.Exp(driftTerm+diffusionFactor*rg.rng.NormFloat64())
 	}
 
 	return path

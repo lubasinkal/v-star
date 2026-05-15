@@ -140,5 +140,5 @@ func ExampleNewRateGeneratorWithSeed() {
 	rg := NewRateGeneratorWithSeed(0.05, 0.02, 0.15, 42)
 	path := rg.GeneratePath(5, 1.0)
 	fmt.Printf("%.2f%%\n", path[5]*100)
-	// Output: 3.82%
+	// Output: 5.56%
 }

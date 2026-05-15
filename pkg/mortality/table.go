@@ -59,19 +59,16 @@ func (t *Table) Qx(age int) float64 {
 
 // Px returns the cumulative survival probability over term years from age.
 // Returns 1 for term <= 0, and 0 when age + term exceeds maxAge.
+// Uses pre-computed lx table for O(1) lookup instead of O(term) iteration.
 func (t *Table) Px(age int, term int) float64 {
 	if t == nil || age < 0 || term <= 0 {
 		return 1
 	}
 	endAge := age + term
-	if endAge > t.maxAge {
+	if endAge > t.maxAge || t.lx[age] == 0 {
 		return 0
 	}
-	product := 1.0
-	for a := age; a < endAge; a++ {
-		product *= (1 - t.qx[a])
-	}
-	return product
+	return t.lx[endAge] / t.lx[age]
 }
 
 // Ex returns the curtate expectation of life at the given age.
