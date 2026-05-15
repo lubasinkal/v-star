@@ -32,7 +32,7 @@ Why the name? Comes from a joke in class: if premiums compound at rate **j** but
 | **Present Value** | Standard & v\* discount factors — the core of everything |
 | **Annuities** | Whole life, term, deferred — with real mortality tables |
 | **Reserves** | Net premium, gross premium, prospective, retrospective |
-| **Monte Carlo** | GBM + Vasicek mean-reverting models. 100k paths in <100ms |
+| **Monte Carlo** | GBM + Vasicek mean-reverting models. 100k paths in ~27ms |
 | **Risk Measures** | VaR, CTE, Expected Shortfall, confidence intervals |
 | **Multiple Decrements** | Combine death, lapse, disability into a single table |
 | **Big CSV Streaming** | Stream millions of rows without blowing up your RAM |
@@ -45,32 +45,34 @@ Why the name? Comes from a joke in class: if premiums compound at rate **j** but
 
 ## Speed
 
-Benchmarked on an Intel i5-8250U laptop (1.6-3.4 GHz, 8 cores, NVMe SSD).
+Benchmarked on an Intel i5-8250U laptop (1.6-3.4 GHz, 8 cores, NVMe SSD). Plugged in.
 
 | Benchmark | Time | Throughput |
 |-----------|------|------------|
-| **CSV Streaming** (5M rows, 144 MB) | 0.63s | **478 MB/s** |
-| **CSV Streaming** (10M rows, 288 MB, est.) | ~1.3s | ~440 MB/s |
-| **Present Value** (single call) | 22.5 ns | **44M / second** |
-| **Annuity** (whole life, 90 terms) | 506 ns | **2M / second** |
-| **Monte Carlo** (100k paths, 10 steps) | 78 ms | **1.3M paths/sec** |
-| **Risk Report** (VaR + CTE, 100k losses) | 0.52 ms | **192M losses/sec** |
+| **CSV Parsing** (10M rows, 288 MB) | 0.80s | **12.6M rows/s** |
+| **Present Value** (single call, direct) | 2.6 ns | **380M / second** |
+| **Present Value** (single call, constructor) | 22.8 ns | **44M / second** |
+| **Annuity** (whole life, 90 terms) | 512 ns | **2M / second** |
+| **Monte Carlo** (100k paths, 10 steps) | 27 ms | **3.7M paths/sec** |
+| **Risk Report** (VaR + CTE, 100k losses) | 0.68 ms | **147M losses/sec** |
+| **Valuation** (10M policies, parallel) | 37 ms | **272M policies/sec** |
 
-### Comparison (10M Rows)
+### CSV Comparison (10M Rows)
 
 | Tool | Time | Memory |
 |------|------|--------|
-| **v-star** | ~1.3s (parallel) | ~0.2 MB streaming |
+| **v-star** (mmap) | **0.80s** | **1.3 GB (OS page cache)** |
+| **v-star** (streaming) | 1.12s | ~0.2 MB |
 | Polars | ~535ms | ~500 MB |
 | Pandas | ~30s | >2 GB |
 
-*v-star's parallel path uses chunked streaming — memory stays constant regardless of file size. Raw throughput depends on your storage; the parser itself runs at **5M+ rows/second** on modern NVMe.*
+*v-star uses memory-mapped I/O for zero-copy parsing. The mmap path uses OS page cache (lazily paged, released to OS under memory pressure). The streaming path keeps memory constant regardless of file size.*
 
 ### Monte Carlo (100k Paths)
 
 | Tool | Time | VaR/CTE |
 |------|------|---------|
-| **v-star** | 78ms | ✓ (with confidence intervals) |
+| **v-star** | **27ms** | ✓ (with confidence intervals) |
 | Python/Numpy | ~2s | ✓ |
 | R | ~5s | ✓ |
 
@@ -266,7 +268,7 @@ result = engine.present_value([{"sum_assured": 100000, "term": 20}])
 
 ## Why Go?
 
-- **Speed** — Compiles to native code, no interpreter overhead. 44M PV calculations/sec
+- **Speed** — Compiles to native code, no interpreter overhead. 380M PV calculations/sec
 - **Zero deps** — Standard library only. No pip, no npm, no version conflicts
 - **Readable** — Every formula is right there in the source. Audit-friendly
 - **Concurrent** — Goroutines make parallelism trivial
