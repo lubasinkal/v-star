@@ -21,11 +21,13 @@ type Table struct {
 	name   string
 	qx     []float64
 	lx     []float64
+	ex     []float64
 	maxAge int
 }
 
 // NewTable constructs a Table from a slice of qx (probability of death) values.
 // Computes lx internally using radix 100000. Index 0 corresponds to age 0.
+// Pre-computes curtate expectation of life ex via recurrence.
 // Returns a Table with maxAge -1 if qx is nil or empty.
 func NewTable(name string, qx []float64) *Table {
 	maxAge := -1
@@ -37,10 +39,16 @@ func NewTable(name string, qx []float64) *Table {
 	for i := 1; i < len(qx); i++ {
 		lx[i] = lx[i-1] * (1 - qx[i-1])
 	}
+	ex := make([]float64, len(lx))
+	for age := maxAge - 1; age >= 0; age-- {
+		p := lx[age+1] / lx[age]
+		ex[age] = p * (1 + ex[age+1])
+	}
 	return &Table{
 		name:   name,
 		qx:     qx,
 		lx:     lx,
+		ex:     ex,
 		maxAge: maxAge,
 	}
 }
@@ -72,16 +80,12 @@ func (t *Table) Px(age int, term int) float64 {
 }
 
 // Ex returns the curtate expectation of life at the given age.
-// This is the sum of Px(age, year) for year >= 1 until maxAge is reached.
+// Uses a pre-computed table computed via recurrence at construction time.
 func (t *Table) Ex(age int) float64 {
 	if t == nil || age < 0 || age > t.maxAge {
 		return 0
 	}
-	ex := 0.0
-	for year := 1; age+year <= t.maxAge+1; year++ {
-		ex += t.Px(age, year)
-	}
-	return ex
+	return t.ex[age]
 }
 
 // MaxAge returns the maximum age defined in the table.

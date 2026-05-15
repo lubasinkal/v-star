@@ -47,23 +47,27 @@ func NewRateGeneratorWithSeed(initialRate, mu, sigma float64, seed uint64) *Rate
 // where Z is a standard normal random variable via the Ziggurat method.
 func (rg *RateGenerator) GeneratePath(steps int, dt float64) RatePath {
 	path := make(RatePath, steps+1)
-	path[0] = rg.initialRate
-
-	driftTerm := rg.driftOffset * dt
-	diffusionFactor := rg.sigma * math.Sqrt(dt)
-
-	for i := 1; i <= steps; i++ {
-		path[i] = path[i-1] * math.Exp(driftTerm+diffusionFactor*rg.rng.NormFloat64())
-	}
-
+	rg.generatePathInto(path, steps, dt)
 	return path
 }
 
-// GeneratePaths generates multiple interest rate paths.
+func (rg *RateGenerator) generatePathInto(path RatePath, steps int, dt float64) {
+	path[0] = rg.initialRate
+	driftTerm := rg.driftOffset * dt
+	diffusionFactor := rg.sigma * math.Sqrt(dt)
+	for i := 1; i <= steps; i++ {
+		path[i] = path[i-1] * math.Exp(driftTerm+diffusionFactor*rg.rng.NormFloat64())
+	}
+}
+
+// GeneratePaths generates multiple interest rate paths using a single flat buffer.
 func (rg *RateGenerator) GeneratePaths(numPaths, steps int, dt float64) []RatePath {
 	paths := make([]RatePath, numPaths)
+	buf := make([]float64, numPaths*(steps+1))
+	stride := steps + 1
 	for i := range numPaths {
-		paths[i] = rg.GeneratePath(steps, dt)
+		paths[i] = buf[i*stride : i*stride+stride : i*stride+stride]
+		rg.generatePathInto(paths[i], steps, dt)
 	}
 	return paths
 }

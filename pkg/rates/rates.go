@@ -9,7 +9,7 @@ type DiscountFactor interface {
 }
 
 // RateConverter performs interest rate conversions and present value calculations.
-// It pre-computes a discount table for terms 0 through 100 for fast lookups.
+// It pre-computes a dynamically-growing discount table for fast lookups.
 type RateConverter struct {
 	discountTable []float64
 	EffectiveRate float64
@@ -31,15 +31,26 @@ func NewRateConverter(effectiveRate float64) *RateConverter {
 }
 
 // Discount returns the discount factor v^term.
-// Uses a pre-computed table for terms 0-100, falls back to loop for larger terms.
+// Uses a pre-computed table that grows as needed for fast lookups.
 func (r *RateConverter) Discount(term int) float64 {
 	if term <= 0 {
 		return 1
 	}
-	if term < len(r.discountTable) {
-		return r.discountTable[term]
+	if term >= len(r.discountTable) {
+		r.growTable(term)
 	}
-	return math.Pow(r.V(), float64(term))
+	return r.discountTable[term]
+}
+
+func (r *RateConverter) growTable(minSize int) {
+	newSize := max(minSize+1, len(r.discountTable)*2+1)
+	next := make([]float64, newSize)
+	v := 1 / (1 + r.EffectiveRate)
+	next[0] = 1.0
+	for i := 1; i < newSize; i++ {
+		next[i] = next[i-1] * v
+	}
+	r.discountTable = next
 }
 
 // V returns the one-period discount factor v = 1/(1+i).
@@ -58,10 +69,10 @@ func (r *RateConverter) PresentValue(sumAssured float64, term int) float64 {
 	if term <= 0 {
 		return sumAssured
 	}
-	if term < len(r.discountTable) {
-		return sumAssured * r.discountTable[term]
+	if term >= len(r.discountTable) {
+		r.growTable(term)
 	}
-	return sumAssured * math.Pow(r.V(), float64(term))
+	return sumAssured * r.discountTable[term]
 }
 
 // PresentValueStar returns sumAssured * (v*)^term using the v-star discount factor.
@@ -124,15 +135,18 @@ func MacaulayDuration(i float64, cashFlows []float64) float64 {
 		return 0
 	}
 	v := 1 / (1 + i)
+	vPow := v
 	pvTotal := 0.0
 	duration := 0.0
 	for t, cf := range cashFlows {
 		if cf <= 0 {
+			vPow *= v
 			continue
 		}
-		pv := cf * math.Pow(v, float64(t+1))
+		pv := cf * vPow
 		pvTotal += pv
 		duration += float64(t+1) * pv
+		vPow *= v
 	}
 	if pvTotal <= 0 {
 		return 0
@@ -154,15 +168,18 @@ func Convexity(i float64, cashFlows []float64) float64 {
 		return 0
 	}
 	v := 1 / (1 + i)
+	vPow := v
 	pvTotal := 0.0
 	conv := 0.0
 	for t, cf := range cashFlows {
 		if cf <= 0 {
+			vPow *= v
 			continue
 		}
-		pv := cf * math.Pow(v, float64(t+1))
+		pv := cf * vPow
 		pvTotal += pv
 		conv += float64(t+1) * float64(t+2) * pv
+		vPow *= v
 	}
 	if pvTotal <= 0 {
 		return 0

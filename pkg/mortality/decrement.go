@@ -7,14 +7,17 @@ package mortality
 type DecrementTable struct {
 	tables []*Table
 	names  []string
+	qx     []float64
+	lx     []float64
+	maxAge int
 }
 
 // NewDecrementTable creates a combined decrement table from multiple
 // single-decrement tables. Each table represents one cause of decrement.
-// The resulting qx at each age = 1 - product(1 - qx_i) for all causes i.
+// Pre-computes combined qx and lx for O(1) lookups.
 func NewDecrementTable(tables []*Table, names []string) *DecrementTable {
 	if len(tables) == 0 {
-		return &DecrementTable{}
+		return &DecrementTable{maxAge: -1}
 	}
 	if len(names) == 0 {
 		names = make([]string, len(tables))
@@ -22,19 +25,40 @@ func NewDecrementTable(tables []*Table, names []string) *DecrementTable {
 			names[i] = tables[i].Name()
 		}
 	}
-	return &DecrementTable{tables: tables, names: names}
+	maxAge := tables[0].MaxAge()
+	for _, t := range tables[1:] {
+		if t.MaxAge() < maxAge {
+			maxAge = t.MaxAge()
+		}
+	}
+	qx := make([]float64, maxAge+1)
+	for age := 0; age <= maxAge; age++ {
+		survival := 1.0
+		for _, t := range tables {
+			survival *= 1 - t.Qx(age)
+		}
+		qx[age] = 1 - survival
+	}
+	lx := make([]float64, maxAge+2)
+	lx[0] = 100000
+	for i := 1; i < len(lx); i++ {
+		lx[i] = lx[i-1] * (1 - qx[i-1])
+	}
+	return &DecrementTable{
+		tables: tables,
+		names:  names,
+		qx:     qx,
+		lx:     lx,
+		maxAge: maxAge,
+	}
 }
 
 // Qx returns the total probability of decrement at age: 1 - prod(1 - qx_i).
 func (d *DecrementTable) Qx(age int) float64 {
-	if d == nil || len(d.tables) == 0 {
+	if d == nil || age < 0 || age > d.maxAge {
 		return 0
 	}
-	survival := 1.0
-	for _, t := range d.tables {
-		survival *= 1 - t.Qx(age)
-	}
-	return 1 - survival
+	return d.qx[age]
 }
 
 // QxByCause returns the probability of decrement from the specific cause at age.
@@ -52,30 +76,25 @@ func (d *DecrementTable) QxByCause(age int, causeIdx int) float64 {
 	return causeQx * (1 - totalQx) / (1 - causeQx)
 }
 
-// Px returns the total survival probability: product(1 - qx_i) for all causes.
+// Px returns the total survival probability over term years: product(1 - qx_t) for t=age..age+term-1.
+// Uses pre-computed lx table for O(1) lookup.
 func (d *DecrementTable) Px(age int, term int) float64 {
-	if d == nil || len(d.tables) == 0 {
+	if d == nil || age < 0 || term <= 0 || age > d.maxAge || d.lx[age] == 0 {
 		return 0
 	}
-	product := 1.0
-	for t := 0; t < term; t++ {
-		product *= 1 - d.Qx(age+t)
+	endAge := age + term
+	if endAge >= len(d.lx) {
+		return 0
 	}
-	return product
+	return d.lx[endAge] / d.lx[age]
 }
 
 // MaxAge returns the minimum max age across all underlying tables.
 func (d *DecrementTable) MaxAge() int {
-	if d == nil || len(d.tables) == 0 {
+	if d == nil {
 		return -1
 	}
-	maxAge := d.tables[0].MaxAge()
-	for _, t := range d.tables[1:] {
-		if t.MaxAge() < maxAge {
-			maxAge = t.MaxAge()
-		}
-	}
-	return maxAge
+	return d.maxAge
 }
 
 // Name returns the combined table name.

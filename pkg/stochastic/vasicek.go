@@ -43,27 +43,33 @@ func NewVasicekGeneratorWithSeed(initialRate, longTermMean, meanReversion, volat
 // Returns a slice of length n+1 where [0] is the initial rate.
 func (vg *VasicekGenerator) GeneratePath(n int, dt float64) RatePath {
 	path := make(RatePath, n+1)
+	vg.generatePathInto(path, n, dt)
+	return path
+}
+
+func (vg *VasicekGenerator) generatePathInto(path RatePath, n int, dt float64) {
 	path[0] = vg.initialRate
 	r := vg.initialRate
 	sqrtDt := math.Sqrt(dt)
 
 	for i := 1; i <= n; i++ {
 		drift := vg.meanReversion * (vg.longTermMean - r) * dt
-		diffusion := vg.volatility * sqrtDt * vg.rng.NormFloat64()
-		r = r + drift + diffusion
+		r = r + drift + vg.volatility*sqrtDt*vg.rng.NormFloat64()
 		if r < 0 {
 			r = 0
 		}
 		path[i] = r
 	}
-	return path
 }
 
-// GeneratePaths generates multiple independent rate paths.
+// GeneratePaths generates multiple independent rate paths using a single flat buffer.
 func (vg *VasicekGenerator) GeneratePaths(numPaths, steps int, dt float64) []RatePath {
 	paths := make([]RatePath, numPaths)
+	buf := make([]float64, numPaths*(steps+1))
+	stride := steps + 1
 	for i := range numPaths {
-		paths[i] = vg.GeneratePath(steps, dt)
+		paths[i] = buf[i*stride : i*stride+stride : i*stride+stride]
+		vg.generatePathInto(paths[i], steps, dt)
 	}
 	return paths
 }

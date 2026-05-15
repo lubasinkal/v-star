@@ -1,8 +1,6 @@
 package annuities
 
 import (
-	"math"
-
 	"github.com/lubasinkal/v-star/pkg/mortality"
 	"github.com/lubasinkal/v-star/pkg/rates"
 )
@@ -144,10 +142,12 @@ func ApproxWholeLifeImmediate(age int, term int, amount float64, i float64, mort
 		return 0
 	}
 	v := 1 / (1 + i)
+	vPow := v
 	ax := 0.0
 	for t := 1; t <= term; t++ {
 		px := mort.Px(age, t)
-		ax += px * math.Pow(v, float64(t))
+		ax += px * vPow
+		vPow *= v
 	}
 	return amount * ax
 }

@@ -30,9 +30,15 @@ func NetPremiumReserve(policy PolicySpec, discount rates.DiscountFactor, mort mo
 	if !ok {
 		return netPremiumReserveGeneric(policy, discount, mort)
 	}
-	annuityCalc := annuities.NewAnnuityCalculator(converter, mort)
 
-	ax := annuityCalc.TermImmediate(age, term, 1.0)
+	v := converter.Discount(1)
+	unitAnnuities := make([]float64, term+1)
+	for k := term - 1; k >= 0; k-- {
+		p := mort.Px(age+k, 1)
+		unitAnnuities[k] = p * v * (1 + unitAnnuities[k+1])
+	}
+
+	ax := unitAnnuities[0]
 	if ax <= 0 {
 		return 0
 	}
@@ -43,25 +49,14 @@ func NetPremiumReserve(policy PolicySpec, discount rates.DiscountFactor, mort mo
 	}
 
 	reserve := 0.0
-	currentAge := age
-	currentTerm := term
-
 	for year := 1; year <= term; year++ {
-		survivalProb := mort.Px(currentAge, 1)
-		discountFactor := converter.Discount(1)
-
-		if survivalProb <= 0 {
+		p := mort.Px(age+year-1, 1)
+		if p <= 0 {
 			break
 		}
-
-		futureLiability := annuityCalc.TermImmediate(currentAge+1, currentTerm-1, sa)
-		futurePremium := annualPremium * annuityCalc.TermImmediate(currentAge+1, currentTerm-1, 1.0)
-
-		netLiability := futureLiability - futurePremium
-		reserve = (reserve+netLiability)*discountFactor/survivalProb - annualPremium
-
-		currentAge++
-		currentTerm--
+		unitAnnuity := unitAnnuities[year]
+		netLiability := (sa - annualPremium) * unitAnnuity
+		reserve = (reserve+netLiability)*v/p - annualPremium
 	}
 
 	return reserve
@@ -72,44 +67,27 @@ func netPremiumReserveGeneric(policy PolicySpec, discount rates.DiscountFactor, 
 	term := policy.Term
 	sa := policy.SumAssured
 
-	ax := 0.0
-	for t := 1; t <= term; t++ {
-		px := mort.Px(age, t)
-		v := discount.Discount(t)
-		ax += px * v
+	v := discount.Discount(1)
+	unitAnnuities := make([]float64, term+1)
+	for k := term - 1; k >= 0; k-- {
+		p := mort.Px(age+k, 1)
+		unitAnnuities[k] = p * v * (1 + unitAnnuities[k+1])
 	}
 
-	if ax <= 0 {
+	if unitAnnuities[0] <= 0 {
 		return 0
 	}
 
-	annualPremium := sa / ax
+	annualPremium := sa / unitAnnuities[0]
 
 	reserve := 0.0
-	currentAge := age
-	currentTerm := term
-
 	for year := 1; year <= term; year++ {
-		survivalProb := mort.Px(currentAge, 1)
-		discountFactor := discount.Discount(1)
-
-		futureAx := 0.0
-		for t := 1; t <= currentTerm-1; t++ {
-			px := mort.Px(currentAge+1, t)
-			v := discount.Discount(t)
-			futureAx += px * v
+		p := mort.Px(age+year-1, 1)
+		if p <= 0 {
+			break
 		}
-
-		futurePremium := annualPremium * futureAx
-		futureLiability := sa * futureAx
-
-		netLiability := futureLiability - futurePremium
-		if survivalProb > 0 && discountFactor > 0 {
-			reserve = (reserve+netLiability)*discountFactor/survivalProb - annualPremium
-		}
-
-		currentAge++
-		currentTerm--
+		netLiability := (sa - annualPremium) * unitAnnuities[year]
+		reserve = (reserve+netLiability)*v/p - annualPremium
 	}
 
 	return reserve
@@ -187,6 +165,7 @@ func RetrospectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort
 
 	annuityCalc := annuities.NewAnnuityCalculator(converter, mort)
 
+	v := converter.Discount(1)
 	accumulated := 0.0
 	currentAge := age
 
@@ -195,7 +174,6 @@ func RetrospectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort
 		if px <= 0 {
 			break
 		}
-		v := converter.Discount(1)
 		accumulated = (accumulated + prem) * v / px
 		currentAge++
 	}
@@ -206,6 +184,7 @@ func RetrospectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort
 }
 
 func retrospectiveReserveGeneric(age int, term int, sa float64, prem float64, discount rates.DiscountFactor, mort mortality.MortalityTable) float64 {
+	v1 := discount.Discount(1)
 	accumulated := 0.0
 	currentAge := age
 
@@ -214,16 +193,16 @@ func retrospectiveReserveGeneric(age int, term int, sa float64, prem float64, di
 		if px <= 0 {
 			break
 		}
-		v := discount.Discount(1)
-		accumulated = (accumulated + prem) * v / px
+		accumulated = (accumulated + prem) * v1 / px
 		currentAge++
 	}
 
 	futureLiability := 0.0
+	vPow := v1
 	for t := 1; t <= term; t++ {
 		px := mort.Px(age, t)
-		v := discount.Discount(t)
-		futureLiability += sa * px * v
+		futureLiability += sa * px * vPow
+		vPow *= v1
 	}
 
 	return accumulated - futureLiability
