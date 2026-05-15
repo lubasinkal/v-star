@@ -65,7 +65,7 @@ func StreamCensus(filepath string, opts CSVOptions, fn func(CensusRecord)) error
 }
 
 // streamCensusFastParallel reads CensusRecords using parallel chunk reading
-// with zero-alloc byte-level parsing. Target: 7M+ rows/sec.
+// with zero-alloc byte-level parsing. Uses memory-mapped I/O for large files.
 func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int64, delimiter byte, fn func(CensusRecord)) error {
 	f, err := os.Open(filepath)
 	if err != nil {
@@ -112,6 +112,14 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 		return scanner.Err()
 	}
 
+	// Try memory-mapped I/O for zero-copy reads
+	mapped, mmapErr := mmapFile(f)
+	if mmapErr == nil && len(mapped) > 0 {
+		defer munmap(mapped)
+		return parseMappedCensus(mapped, headerOffset, dataSize, numWorkers, delimiter, opts.Limit, opts.OnParseError, fn)
+	}
+
+	// Fallback: parallel chunked reads via ReadAt
 	results := make([][]CensusRecord, numWorkers)
 	var wg sync.WaitGroup
 
@@ -140,6 +148,90 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 
 	count := 0
 	limit := opts.Limit
+	for _, batch := range results {
+		for _, record := range batch {
+			if limit > 0 && count >= limit {
+				return nil
+			}
+			fn(record)
+			count++
+		}
+	}
+
+	return nil
+}
+
+func parseMappedCensus(mapped []byte, headerOffset int64, dataSize int64, numWorkers int, delimiter byte, limit int, onErr func(int, error), fn func(CensusRecord)) error {
+	jobs := buildChunks(headerOffset, dataSize, numWorkers)
+	results := make([][]CensusRecord, numWorkers)
+	var wg sync.WaitGroup
+
+	for w := range numWorkers {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			start := jobs[w].start
+			end := jobs[w].end
+			originalEnd := jobs[w].limit
+
+			chunk := mapped[start:end]
+			offset := 0
+			if start > headerOffset && len(chunk) > 0 && chunk[0] != '\n' {
+				if i := bytes.IndexByte(chunk, '\n'); i >= 0 {
+					offset = i + 1
+				}
+			}
+
+			estLines := max(originalEnd/45, 1024)
+			batch := make([]CensusRecord, 0, estLines)
+
+			processedBytes := offset
+			for processedBytes < originalEnd && processedBytes < len(chunk) {
+				i := bytes.IndexByte(chunk[processedBytes:], '\n')
+				if i < 0 {
+					break
+				}
+				line := chunk[processedBytes : processedBytes+i]
+				processedBytes += i + 1
+
+				if len(line) > 0 && line[len(line)-1] == '\r' {
+					line = line[:len(line)-1]
+				}
+				if len(line) == 0 {
+					continue
+				}
+
+				record, err := parseCensusFastBytes(line, delimiter)
+				if err == nil {
+					batch = append(batch, record)
+				} else if onErr != nil {
+					onErr(-1, err)
+				}
+			}
+
+			// Edge case: line ending exactly at boundary
+			if processedBytes == originalEnd && processedBytes < len(chunk) {
+				if i := bytes.IndexByte(chunk[processedBytes:], '\n'); i >= 0 {
+					line := chunk[processedBytes : processedBytes+i]
+					if len(line) > 0 && line[len(line)-1] == '\r' {
+						line = line[:len(line)-1]
+					}
+					if len(line) > 0 {
+						record, err := parseCensusFastBytes(line, delimiter)
+						if err == nil {
+							batch = append(batch, record)
+						}
+					}
+				}
+			}
+
+			results[w] = batch
+		}(w)
+	}
+
+	wg.Wait()
+
+	count := 0
 	for _, batch := range results {
 		for _, record := range batch {
 			if limit > 0 && count >= limit {
