@@ -66,11 +66,14 @@ jobs:
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
-            CHANGES=$(git log --format="- %s (%h)" $PREV_TAG..HEAD -- . ':!.github')
+            CHANGES=$(git log --oneline $PREV_TAG..HEAD -- . ':!.github')
           else
             CHANGES="Initial release"
           fi
-          echo "full_changelog=$CHANGES" >> $GITHUB_ENV
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "full_changelog<<$EOF" >> $GITHUB_ENV
+          echo "$CHANGES" >> $GITHUB_ENV
+          echo "$EOF" >> $GITHUB_ENV
 
       - name: Create release
         uses: softprops/action-gh-release@v2
