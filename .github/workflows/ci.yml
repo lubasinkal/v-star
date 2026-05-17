@@ -3,37 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: "1.26"
-          cache: false
-
-      - name: Build
-        run: go build ./...
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test
-        run: go test -coverprofile=coverage.out ./...
-
-      - name: Upload coverage
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v6
-        with:
-          name: coverage
-          path: coverage.out
-
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -47,5 +24,153 @@ jobs:
 
       - name: Check formatting
         run: |
-          gofmt -l . | tee /tmp/fmt.txt
-          if [ -s /tmp/fmt.txt ]; then echo "Files need formatting:"; cat /tmp/fmt.txt; exit 1; fi
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Files need formatting:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Verify modules
+        run: go mod verify
+
+  test:
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test with race detector
+        run: go test -race -count=1 -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage
+          path: coverage.out
+
+  build-binaries:
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: Extract version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Build Linux amd64
+        run: go build -ldflags="-s -w" -o "v-star-${{ env.VERSION }}-linux-amd64" ./cmd/v-star
+
+      - name: Build Darwin amd64
+        run: GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o "v-star-${{ env.VERSION }}-darwin-amd64" ./cmd/v-star
+
+      - name: Build Darwin arm64
+        run: GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o "v-star-${{ env.VERSION }}-darwin-arm64" ./cmd/v-star
+
+      - name: Build Windows amd64
+        run: GOOS=windows go build -ldflags="-s -w" -o "v-star-${{ env.VERSION }}-windows-amd64.exe" ./cmd/v-star
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build Python wheel
+        run: |
+          cd examples/python_bridge
+          python -m pip install build
+          python -m build
+          cd ../..
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-artifacts
+          path: |
+            v-star-${{ env.VERSION }}-*
+            examples/python_bridge/dist/*.whl
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-binaries]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: release-artifacts
+
+      - name: Generate changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log --oneline "$PREV_TAG..HEAD" -- . ':!.github')
+          else
+            CHANGES="Initial release"
+          fi
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "full_changelog<<$EOF" >> $GITHUB_ENV
+          echo "$CHANGES" >> $GITHUB_ENV
+          echo "$EOF" >> $GITHUB_ENV
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body: |
+            ## What's New
+            ${{ env.full_changelog }}
+
+            ## Installation
+
+            ### Go
+            ```bash
+            go install github.com/lubasinkal/v-star/cmd/v-star@${{ env.VERSION }}
+            ```
+
+            ### Python
+            ```bash
+            pip install vstar-py
+            ```
+
+            Or download an asset from below.
+          draft: false
+          prerelease: false
+          files: |
+            v-star-${{ env.VERSION }}-linux-amd64
+            v-star-${{ env.VERSION }}-darwin-amd64
+            v-star-${{ env.VERSION }}-darwin-arm64
+            v-star-${{ env.VERSION }}-windows-amd64.exe
+            *.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
