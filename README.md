@@ -2,22 +2,24 @@
 
 **Your calculations just got millions of times faster.**
 
-Built in Go with zero dependencies, v-star handles million-policy valuations in milliseconds — no Excel crashes, no Python overhead, no proprietary black boxes.
+Ever tried to run a valuation on a million-policy census? Watched Excel freeze, crash, or take hours? v-star is the answer. Built in Go — an actually fast language compared to R, Python, or VBA — it handles massive datasets and calculations in milliseconds while your coffee is still hot.
 
 ![CI](https://github.com/lubasinkal/v-star/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
-## Background
+## The Story
 
-Actuarial work shouldn't require enterprise software. v-star was built to address:
+Actuarial science grad. Tired of:
 
-- Excel/VBA falling over on files larger than a few MB
-- Python/R being too slow for production-scale Monte Carlo
-- Proprietary tools that hide the math behind black-box APIs
+- Excel crashing on big files
+- VBA scripts that nobody understands
+- Python code that felt slow (still better than VBA)
+- Proprietary tools where you can't see the math
+- Waiting to get accepted for a job
 
-v-star is open source, zero-dependency Go. Every formula is in the source — audit-friendly by design.
+So I built v-star. Zero dependencies. All the actuarial stuff a gradute would think you'd need. Fast enough to make your laptop feel like a supercomputer.
 
 Why the name? Comes from a joke in class: if premiums compound at rate **j** but you're discounting at **i**, the new discount factor is **v\*** = (1+j) × v. The star marks the difference.
 
