@@ -65,9 +65,9 @@ func BenchmarkStreamCSV(b *testing.B) {
 	}
 }
 
-// BenchmarkStreamCSVParallel measures parallel CSV reading throughput.
-// Run with: go test ./pkg/reader -bench=BenchmarkStreamCSVParallel -benchmem
-func BenchmarkStreamCSVParallel(b *testing.B) {
+// BenchmarkStreamCensusParallel measures parallel census reading throughput.
+// Run with: go test ./pkg/reader -bench=BenchmarkStreamCensusParallel -benchmem
+func BenchmarkStreamCensusParallel(b *testing.B) {
 	filepath := "../../10M.csv"
 	if _, err := os.Stat(filepath); os.IsNotExist(err) {
 		b.Skip("10M.csv not found")
@@ -75,9 +75,7 @@ func BenchmarkStreamCSVParallel(b *testing.B) {
 
 	b.SetBytes(288 * 1024 * 1024)
 	for b.Loop() {
-		StreamCSVWithPV(filepath, CSVOptions{Header: true, Limit: 5000000}, func(sumAssured float64, term int) float64 {
-			return sumAssured
-		})
+		StreamCensus(filepath, CSVOptions{Header: true, Limit: 5000000}, func(rec CensusRecord) {})
 	}
 }
 

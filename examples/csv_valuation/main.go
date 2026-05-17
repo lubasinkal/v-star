@@ -16,17 +16,21 @@ func main() {
 	defer os.Remove(sampleFile)
 
 	converter := newPVCalculator(0.05)
-	opts := reader.CSVOptions{Header: true}
 
 	fmt.Println("Streaming CSV and computing present values...")
-	totalPV, count := reader.StreamCSVWithPV(sampleFile, opts, converter)
+	totalPV := 0.0
+	count := 0
+	reader.StreamCensus(sampleFile, reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
+		totalPV += converter(rec.SumAssured, rec.Term)
+		count++
+	})
 
 	fmt.Printf("Records processed: %d\n", count)
 	fmt.Printf("Total present value: $%.2f\n", totalPV)
 	fmt.Println()
 
 	fmt.Println("Raw CSV rows:")
-	reader.StreamCSV(sampleFile, opts, func(fields []string) {
+	reader.StreamCSV(sampleFile, reader.CSVOptions{Header: true}, func(fields []string) {
 		fmt.Printf("  %v\n", fields)
 	})
 }

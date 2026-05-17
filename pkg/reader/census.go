@@ -32,9 +32,12 @@ func readHeadersAndOffset(filepath string, delimiter byte) ([]string, int64, err
 	return headerFields, headerOffset, nil
 }
 
-// StreamCensus reads a census CSV file and yields CensusRecords.
-// Uses fast byte-level parallel path when columns match default order,
-// falls back to generic reader for non-standard layouts.
+// StreamCensus reads a census CSV file and calls fn for each CensusRecord.
+// This is the primary function for actuarial census data. Auto-detects the column
+// layout (age,sex,policy_type,sum_assured,term) and uses a fast parallel path for
+// the default column order, falling back to flexible column mapping otherwise.
+//
+// For batch processing (processing records in chunks), use StreamCensusChunked.
 func StreamCensus(filepath string, opts CSVOptions, fn func(CensusRecord)) error {
 	delimiter := opts.Delimiter
 	if delimiter == 0 {

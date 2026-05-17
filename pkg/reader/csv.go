@@ -163,10 +163,11 @@ func processChunk(f *os.File, j csvJob, headerOffset int64, lineHandler func(lin
 	return nil
 }
 
-// StreamCSV reads any CSV file and calls fn for each row with the parsed fields.
-// This is a generic reader — it does not know about specific record types.
-// Uses parallel processing for large files.
-// Note: This allocates strings for each field. For zero-allocation parsing, use StreamCSVRaw.
+// StreamCSV reads any CSV file and calls fn for each row with parsed string fields.
+// This is a generic reader — use it when your CSV doesn't follow the census column layout.
+// For actuarial census CSVs (age,sex,policy_type,sum_assured,term), use StreamCensus instead.
+// Uses parallel processing for files larger than ~10 MB.
+// Note: Allocates strings per field. For zero-allocation, use StreamCSVRaw.
 func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error {
 	f, headerOffset, dataSize, delimiter, err := openCSV(filepath, opts)
 	if err != nil {
@@ -241,8 +242,8 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 }
 
 // StreamCSVRaw reads any CSV file and calls fn with raw byte slices for maximum performance.
-// This avoids string allocations - the caller is responsible for copying if needed.
-// Uses parallel processing for large files.
+// This avoids string allocations — the caller is responsible for copying byte slices if
+// they need to outlive the callback. For most use cases, StreamCSV or StreamCensus is sufficient.
 func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) error {
 	f, headerOffset, dataSize, delimiter, err := openCSV(filepath, opts)
 	if err != nil {
@@ -314,17 +315,6 @@ func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) er
 		}
 	}
 	return nil
-}
-
-// StreamCSVWithPV reads CSV in parallel and calculates PV for each row.
-// Delegates to StreamCensusWithPV for consistency.
-func StreamCSVWithPV(filepath string, opts CSVOptions, pvFn func(sumAssured float64, term int) float64) (float64, int) {
-	streamOpts := StreamOptions{
-		CSVOptions: opts,
-		ChunkSize:  opts.Limit,
-		Workers:    runtime.NumCPU(),
-	}
-	return StreamCensusWithPV(filepath, streamOpts, pvFn)
 }
 
 func streamCSVSequentialStr(f *os.File, opts CSVOptions, headerOffset int64, delimiter byte, fn func(fields []string)) error {
@@ -495,7 +485,8 @@ func parseFieldsQuoted(line []byte, delimiter byte) []string {
 }
 
 // GetHeaders reads the header row and returns column names.
-// Useful for detecting column order before deciding on parsing strategy.
+// Useful for inspecting column layout before choosing a parsing strategy.
+// For census CSVs, StreamCensus auto-detects columns — you typically don't need this.
 func GetHeaders(filepath string, delimiter byte) ([]string, error) {
 	if delimiter == 0 {
 		delimiter = ','

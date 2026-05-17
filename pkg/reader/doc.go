@@ -1,47 +1,31 @@
 // Package reader provides CSV streaming and parsing with parallel processing.
 //
-// # Quick Start
+// # Which function to use
 //
-// Stream a CSV file and process each row:
+// | You want to...                                  | Use this                          |
+// |-------------------------------------------------|-----------------------------------|
+// | Process actuarial census CSV row by row         | StreamCensus                     |
+// | Process census CSV in batches (DB, API calls)   | StreamCensusChunked              |
+// | Read a generic CSV (non-census) with strings    | StreamCSV                        |
+// | Read a generic CSV with raw bytes (zero-alloc)  | StreamCSVRaw                     |
+// | Inspect column headers before processing        | GetHeaders                       |
 //
-//	reader.StreamCSV("data.csv", reader.CSVOptions{Header: true}, func(fields []string) {
-//	    fmt.Println(fields[0], fields[1]) // first two columns
-//	})
-//
-// # Calculate the average of a column
-//
-//	sum := 0.0
-//	count := 0
-//	reader.StreamCSV("policies.csv", reader.CSVOptions{Header: true}, func(fields []string) {
-//	    val, err := strconv.ParseFloat(fields[3], 64) // 4th column
-//	    if err == nil {
-//	        sum += val
-//	        count++
-//	    }
-//	})
-//	fmt.Printf("Average: %.2f\n", sum/float64(count))
-//
-// # Stream with zero allocations (faster for large files)
-//
-//	reader.StreamCSVRaw("big.csv", reader.CSVOptions{Header: true}, func(fields [][]byte) {
-//	    // fields are raw byte slices — no string allocation
-//	    // convert with string(fields[0]) if needed
-//	})
-//
-// # Parse actuarial census records directly
+// # Quick start — process an actuarial census CSV
 //
 //	reader.StreamCensus("policies.csv", reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
 //	    fmt.Printf("Age: %d, Sum: %.2f\n", rec.Age, rec.SumAssured)
 //	})
 //
-// # Calculate total present value from a CSV
+// # Total present value (just use StreamCensus + local accumulator)
 //
-//	converter := rates.NewRateConverter(0.05)
-//	opts := reader.CSVOptions{Header: true}
-//	totalPV, count := reader.StreamCSVWithPV("policies.csv", opts, converter.PresentValue)
-//	fmt.Printf("Total PV: %.2f from %d records\n", totalPV, count)
+//	totalPV := 0.0
+//	count := 0
+//	reader.StreamCensus("policies.csv", reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
+//	    totalPV += converter.PresentValue(rec.SumAssured, rec.Term)
+//	    count++
+//	})
 //
-// # Parallel chunked processing
+// # Batch processing (database inserts, API batches)
 //
 //	sopts := reader.StreamOptions{
 //	    CSVOptions: reader.CSVOptions{Header: true},
@@ -49,18 +33,12 @@
 //	    Workers:    8,
 //	}
 //	reader.StreamCensusChunked("policies.csv", sopts, func(chunk []reader.CensusRecord) error {
-//	    // process 10,000 records per chunk, in parallel across 8 goroutines
-//	    return nil
+//	    return insertBatch(chunk)
 //	})
 //
-// # Output as JSON
+// # Generic CSV (not actuarial census format)
 //
-//	jw := writer.NewJSONWriter(os.Stdout)
-//	reader.StreamCensus("policies.csv", reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
-//	    pv := converter.PresentValue(rec.SumAssured, rec.Term)
-//	    jw.WriteRecord(writer.JSONRecord{
-//	        Age: rec.Age, SumAssured: rec.SumAssured, PresentValue: pv,
-//	    })
+//	reader.StreamCSV("data.csv", reader.CSVOptions{Header: true}, func(fields []string) {
+//	    fmt.Println(fields[0], fields[1])
 //	})
-//	jw.Close()
 package reader

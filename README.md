@@ -144,14 +144,25 @@ fmt.Println(report.VaR95, report.CTE95)        // risk metrics
 fmt.Println(report.Confidence95Lo, report.Confidence95Hi)  // ±1.96σ/√n
 
 // Stream a million-row CSV without loading into memory
-totalPV, count := reader.StreamCensusWithPV("policies.csv",
-    reader.StreamOptions{CSVOptions: reader.CSVOptions{Header: true}},
-    converter.PresentValue)
+totalPV := 0.0
+reader.StreamCensus("policies.csv", reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
+    totalPV += converter.PresentValue(rec.SumAssured, rec.Term)
+})
 
 // Generic parallel worker pool with context cancellation
 wp := concurrency.NewWorkerPool(8, func(r Record) float64 { return r.Value })
 result, err := wp.ProcessBatchContext(ctx, records)
 ```
+
+### CSV Reader — Which one to use
+
+| Function | When to use |
+|----------|-------------|
+| `StreamCensus` | Process an actuarial census CSV row by row (auto-detects columns); accumulate your own metrics |
+| `StreamCensusChunked` | Batch processing (database inserts, API calls) |
+| `StreamCSV` | Generic CSV with string fields (non-standard column layout) |
+| `StreamCSVRaw` | Generic CSV with zero-allocation byte slices |
+| `GetHeaders` | Inspect column headers before deciding parsing strategy |
 
 **All standard library. Zero external dependencies.**
 
