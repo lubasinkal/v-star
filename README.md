@@ -2,24 +2,22 @@
 
 **Your calculations just got millions of times faster.**
 
-Ever tried to run a valuation on a million-policy census? Watched Excel freeze, crash, or take hours? v-star is the answer. Built in Go — an actually fast language compared to R, Python, or VBA — it handles massive datasets and calculations in milliseconds while your coffee is still hot.
+Built in Go with zero dependencies, v-star handles million-policy valuations in milliseconds — no Excel crashes, no Python overhead, no proprietary black boxes.
 
 ![CI](https://github.com/lubasinkal/v-star/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
-## The Story
+## Background
 
-Actuarial science grad. Tired of:
+Actuarial work shouldn't require enterprise software. v-star was built to address:
 
-- Excel crashing on big files
-- VBA scripts that nobody understands
-- Python code that felt slow (still better than VBA)
-- Proprietary tools where you can't see the math
-- Waiting to get accepted for a job
+- Excel/VBA falling over on files larger than a few MB
+- Python/R being too slow for production-scale Monte Carlo
+- Proprietary tools that hide the math behind black-box APIs
 
-So I built v-star. Zero dependencies. All the actuarial stuff a gradute would think you'd need. Fast enough to make your laptop feel like a supercomputer.
+v-star is open source, zero-dependency Go. Every formula is in the source — audit-friendly by design.
 
 Why the name? Comes from a joke in class: if premiums compound at rate **j** but you're discounting at **i**, the new discount factor is **v\*** = (1+j) × v. The star marks the difference.
 
@@ -39,7 +37,7 @@ Why the name? Comes from a joke in class: if premiums compound at rate **j** but
 | **HTTP API** | Call from Python, R, Excel via REST endpoints |
 | **Zero Dependencies** | Standard library only. No pip, no npm, no version hell |
 
-**New in v0.5.0:** Vasicek interest rate model, multiple decrement tables, confidence intervals on risk metrics, generic parallel worker pool, graceful shutdown, CORS middleware, text report export.
+**New in v0.6.1:** Cleaned public API — removed redundant wrappers (StreamCensusWithPV, StreamCSVWithPV, ProcessBatch, ExpectedShortfall). Removed 8-core worker cap — uses all available cores. Added JSON tags to all model structs. Reserve functions now accept any DiscountFactor (no internal type assertions). Reader entry points documented with decision table.
 
 ---
 
@@ -150,7 +148,10 @@ reader.StreamCensus("policies.csv", reader.CSVOptions{Header: true}, func(rec re
 })
 
 // Generic parallel worker pool with context cancellation
-wp := concurrency.NewWorkerPool(8, func(r Record) float64 { return r.Value })
+wp := concurrency.NewWorkerPool(8, func(r reader.CensusRecord) float64 {
+    return converter.PresentValue(r.SumAssured, r.Term)
+})
+totalPV := wp.ProcessBatch(records)
 result, err := wp.ProcessBatchContext(ctx, records)
 ```
 
@@ -301,8 +302,8 @@ result = engine.present_value([{"sum_assured": 100000, "term": 20}])
 
 ## What's Coming Next?
 
-- **v0.6.0** — Markov chain models (disability, multiple decrements), credibility theory (Bühlmann)
-- **v0.7.0** — Variance reduction (antithetic variates, control variates, Latin Hypercube)
+- **v0.7.0** — Markov chain models (disability, multiple decrements), credibility theory (Bühlmann)
+- **v0.8.0** — Variance reduction (antithetic variates, control variates, Latin Hypercube)
 - **v1.0.0** — Stable API, production-ready, deployment docs (Docker, Fly.io)
 
 Full roadmap: [ROADMAP.md](./ROADMAP.md)

@@ -1,7 +1,7 @@
 # Roadmap
 
-**Current**: v0.5.0 (tagged) — Polish & Documentation
-(Full godoc, Example funcs, HTTP server, detailed CLI, 100% test coverage, Python HTTP bridge)
+**Current**: v0.6.1 — API Cleanup & Production Readiness
+(Removed redundant convenience wrappers, removed 8-core worker cap, JSON tags on all models, reserves accept any DiscountFactor, reader entry points documented with decision table)
 
 ## v1.0.0 — Stable Core (Mid-May 2026)
 The "show to employers / put on CV" version. No breaking changes after this.
