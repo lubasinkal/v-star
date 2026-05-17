@@ -143,5 +143,3 @@ func (wp *WorkerPool[T]) processParallelContext(ctx context.Context, items []T) 
 	}
 	return total, nil
 }
-
-
