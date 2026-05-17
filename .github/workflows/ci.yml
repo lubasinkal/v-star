@@ -81,16 +81,16 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
       - name: Build Linux amd64
-        run: go build -ldflags="-s -w" -o "v-star-${{ env.VERSION }}-linux-amd64" ./cmd/v-star
+        run: go build -ldflags="-s -w -X main.version=${{ env.VERSION }}" -o "v-star-${{ env.VERSION }}-linux-amd64" ./cmd/v-star
 
       - name: Build Darwin amd64
-        run: GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o "v-star-${{ env.VERSION }}-darwin-amd64" ./cmd/v-star
+        run: GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ env.VERSION }}" -o "v-star-${{ env.VERSION }}-darwin-amd64" ./cmd/v-star
 
       - name: Build Darwin arm64
-        run: GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o "v-star-${{ env.VERSION }}-darwin-arm64" ./cmd/v-star
+        run: GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.version=${{ env.VERSION }}" -o "v-star-${{ env.VERSION }}-darwin-arm64" ./cmd/v-star
 
       - name: Build Windows amd64
-        run: GOOS=windows go build -ldflags="-s -w" -o "v-star-${{ env.VERSION }}-windows-amd64.exe" ./cmd/v-star
+        run: GOOS=windows go build -ldflags="-s -w -X main.version=${{ env.VERSION }}" -o "v-star-${{ env.VERSION }}-windows-amd64.exe" ./cmd/v-star
 
       - name: Set up Python
         uses: actions/setup-python@v5
