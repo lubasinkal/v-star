@@ -52,12 +52,6 @@ func cteSorted(sorted []float64, confidence float64) float64 {
 	return sum / float64(len(sorted)-idx)
 }
 
-// ExpectedShortfall is an alias for CTE.
-// Both measure the expected loss given that the loss exceeds VaR.
-func ExpectedShortfall(losses []float64, confidence float64) float64 {
-	return CTE(losses, confidence)
-}
-
 // RiskReport contains comprehensive risk metrics from a simulation.
 type RiskReport struct {
 	Mean           float64

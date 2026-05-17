@@ -14,35 +14,39 @@ func pvFn(converter *rates.RateConverter) func(reader.CensusRecord) float64 {
 	}
 }
 
-func TestProcessBatch_EmptyRecords(t *testing.T) {
-	got := ProcessBatch(nil, rates.NewRateConverter(0.05), 4)
+func TestNewWorkerPool_EmptyRecords(t *testing.T) {
+	converter := rates.NewRateConverter(0.05)
+	wp := NewWorkerPool(4, pvFn(converter))
+	got := wp.ProcessBatch(nil)
 	if got != 0 {
 		t.Errorf("ProcessBatch(nil) = %v, want 0", got)
 	}
 }
 
-func TestProcessBatch_SingleRecord(t *testing.T) {
+func TestNewWorkerPool_SingleRecord(t *testing.T) {
 	converter := rates.NewRateConverter(0.05)
+	wp := NewWorkerPool(1, pvFn(converter))
 	records := []reader.CensusRecord{
 		{Age: 30, SumAssured: 100000, Term: 20},
 	}
 
-	got := ProcessBatch(records, converter, 1)
+	got := wp.ProcessBatch(records)
 	expected := converter.PresentValue(100000, 20)
 	if got != expected {
 		t.Errorf("ProcessBatch single record = %v, want %v", got, expected)
 	}
 }
 
-func TestProcessBatch_MultipleRecords(t *testing.T) {
+func TestNewWorkerPool_MultipleRecords(t *testing.T) {
 	converter := rates.NewRateConverter(0.05)
+	wp := NewWorkerPool(4, pvFn(converter))
 	records := []reader.CensusRecord{
 		{Age: 30, SumAssured: 100000, Term: 20},
 		{Age: 45, SumAssured: 200000, Term: 10},
 		{Age: 50, SumAssured: 150000, Term: 15},
 	}
 
-	got := ProcessBatch(records, converter, 4)
+	got := wp.ProcessBatch(records)
 	expected := 0.0
 	for _, r := range records {
 		expected += converter.PresentValue(r.SumAssured, r.Term)
@@ -53,7 +57,7 @@ func TestProcessBatch_MultipleRecords(t *testing.T) {
 	}
 }
 
-func TestProcessBatch_ParallelMatchesSequential(t *testing.T) {
+func TestNewWorkerPool_ParallelMatchesSequential(t *testing.T) {
 	converter := rates.NewRateConverter(0.05)
 	records := make([]reader.CensusRecord, 2000)
 	for i := range records {
@@ -64,8 +68,10 @@ func TestProcessBatch_ParallelMatchesSequential(t *testing.T) {
 		}
 	}
 
-	sequential := ProcessBatch(records, converter, 1)
-	parallel := ProcessBatch(records, converter, 8)
+	seqWP := NewWorkerPool(1, pvFn(converter))
+	parWP := NewWorkerPool(8, pvFn(converter))
+	sequential := seqWP.ProcessBatch(records)
+	parallel := parWP.ProcessBatch(records)
 
 	diff := sequential - parallel
 	if diff < 0 {

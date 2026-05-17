@@ -73,13 +73,6 @@ func TestCTE_KnownValues(t *testing.T) {
 	}
 }
 
-func TestExpectedShortfall_IsCTE(t *testing.T) {
-	losses := []float64{10, 20, 30, 40, 50}
-	if got := ExpectedShortfall(losses, 0.90); got != CTE(losses, 0.90) {
-		t.Errorf("ExpectedShortfall != CTE: %v vs %v", got, CTE(losses, 0.90))
-	}
-}
-
 func TestComputeReport(t *testing.T) {
 	losses := []float64{10, 20, 30, 40, 50, 60, 70, 80, 90, 100}
 	report := ComputeReport(losses)

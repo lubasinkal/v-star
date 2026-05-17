@@ -4,9 +4,6 @@ import (
 	"context"
 	"runtime"
 	"sync"
-
-	"github.com/lubasinkal/v-star/pkg/rates"
-	"github.com/lubasinkal/v-star/pkg/reader"
 )
 
 // WorkerPool processes items of type T in parallel using goroutines.
@@ -147,10 +144,4 @@ func (wp *WorkerPool[T]) processParallelContext(ctx context.Context, items []T) 
 	return total, nil
 }
 
-// ProcessBatch is a convenience function for processing CensusRecord batches.
-func ProcessBatch(records []reader.CensusRecord, converter *rates.RateConverter, workers int) float64 {
-	wp := NewWorkerPool(workers, func(r reader.CensusRecord) float64 {
-		return converter.PresentValue(r.SumAssured, r.Term)
-	})
-	return wp.ProcessBatch(records)
-}
+

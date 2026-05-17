@@ -98,7 +98,10 @@ func benchmarkValuation() {
 	converter := rates.NewRateConverter(0.05)
 
 	// Warmup run
-	concurrency.ProcessBatch(records, converter, runtime.NumCPU())
+	wp := concurrency.NewWorkerPool(runtime.NumCPU(), func(r reader.CensusRecord) float64 {
+		return converter.PresentValue(r.SumAssured, r.Term)
+	})
+	wp.ProcessBatch(records)
 
 	// GC to get clean baseline
 	runtime.GC()
@@ -108,7 +111,7 @@ func benchmarkValuation() {
 	runtime.ReadMemStats(&memStatsBefore)
 
 	start := time.Now()
-	totalPV := concurrency.ProcessBatch(records, converter, runtime.NumCPU())
+	totalPV := wp.ProcessBatch(records)
 	duration := time.Since(start)
 
 	// Read memory stats immediately without GC to capture actual allocations
