@@ -60,7 +60,7 @@ func main() {
 }
 
 func runDefault(interest, growth float64) {
-	converter := rates.RateConverter{EffectiveRate: interest}
+	converter := rates.NewRateConverter(interest)
 	fmt.Println("--- V-star Actuarial Engine ---")
 	fmt.Printf("Effective Rate (i): %.2f%%\n", interest*100)
 	fmt.Printf("Growth Rate (j): %.2f%%\n", growth*100)

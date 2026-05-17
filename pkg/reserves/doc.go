@@ -2,6 +2,9 @@
 //
 // # Net premium reserve
 //
+// NetPremiumReserve computes the theoretical net premium internally (ignoring
+// PolicySpec.Premium). The other reserve functions use PolicySpec.Premium.
+//
 //	converter := rates.NewRateConverter(0.05)
 //	table, _ := mortality.LoadCSV("mortality.csv")
 //
@@ -9,7 +12,6 @@
 //	    Age:        30,
 //	    Term:       20,
 //	    SumAssured: 100000,
-//	    Premium:    500,
 //	}
 //	npr := reserves.NetPremiumReserve(policy, converter, table)
 //

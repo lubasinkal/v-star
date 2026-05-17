@@ -19,6 +19,8 @@ type RateGenerator struct {
 }
 
 // NewRateGenerator creates a new rate generator with a random seed.
+// initialRate is the starting interest rate, mu is the drift (expected growth rate),
+// and sigma is the volatility (standard deviation of returns).
 // Use NewRateGeneratorWithSeed for reproducible simulations.
 func NewRateGenerator(initialRate, mu, sigma float64) *RateGenerator {
 	return &RateGenerator{
@@ -31,7 +33,9 @@ func NewRateGenerator(initialRate, mu, sigma float64) *RateGenerator {
 }
 
 // NewRateGeneratorWithSeed creates a new rate generator with a deterministic seed.
-// This enables reproducible Monte Carlo simulations for auditability.
+// initialRate is the starting interest rate, mu is the drift (expected growth rate),
+// sigma is the volatility (standard deviation of returns).
+// The seed enables reproducible Monte Carlo simulations for auditability.
 func NewRateGeneratorWithSeed(initialRate, mu, sigma float64, seed uint64) *RateGenerator {
 	return &RateGenerator{
 		initialRate: initialRate,

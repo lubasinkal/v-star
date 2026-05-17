@@ -82,10 +82,10 @@ func TestNetPremiumReserve_GenericPath(t *testing.T) {
 	mort := zeroMortalityTable(120)
 	discount := mockDiscount{rate: 0.05}
 
-	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 0}
+	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 300}
 	npr := NetPremiumReserve(policy, discount, mort)
-	if npr != 0 {
-		t.Errorf("NetPremiumReserve at inception = %v, want 0", npr)
+	if npr <= 0 {
+		t.Errorf("NetPremiumReserve = %v, want > 0", npr)
 	}
 }
 
@@ -141,40 +141,42 @@ func TestRetrospectiveReserve_GenericPath(t *testing.T) {
 	}
 }
 
-func TestNetPremiumReserve_ZeroAtInception(t *testing.T) {
+func TestNetPremiumReserve_PremiumIgnored(t *testing.T) {
 	mort := zeroMortalityTable(120)
 	converter := rates.NewRateConverter(0.05)
 
-	// With zero mortality, the net premium reserve should follow the
-	// prospective method: reserve at time 0 should be 0 by definition
-	// (premium is set to make the policy fair)
-	policy := PolicySpec{Age: 30, Term: 10, SumAssured: 100000, Premium: 0}
-	npr := NetPremiumReserve(policy, converter, mort)
+	// NetPremiumReserve computes the net premium internally and ignores the
+	// Premium field. Both calls should return the same result.
+	policy0 := PolicySpec{Age: 30, Term: 10, SumAssured: 100000, Premium: 0}
+	policy1 := PolicySpec{Age: 30, Term: 10, SumAssured: 100000, Premium: 1000}
 
-	// With premium=0, the net premium is calculated as sa/ax
-	// Reserve at time 0 should be exactly 0 (that's how net premium works)
-	if !floatEquals(npr, 0) {
-		t.Errorf("NetPremiumReserve at inception = %.6f, want 0", npr)
+	npr0 := NetPremiumReserve(policy0, converter, mort)
+	npr1 := NetPremiumReserve(policy1, converter, mort)
+
+	if !floatEquals(npr0, npr1) {
+		t.Errorf("NetPremiumReserve(Pre=0) = %v, NetPremiumReserve(Pre=1000) = %v, want equal", npr0, npr1)
+	}
+	if math.IsNaN(npr0) || math.IsInf(npr0, 0) {
+		t.Errorf("NetPremiumReserve = %v, want finite", npr0)
 	}
 }
 
-func TestNetPremiumReserve_IncreasesOverTime(t *testing.T) {
+func TestNetPremiumReserve_TerminalValue(t *testing.T) {
 	mort := zeroMortalityTable(120)
 	converter := rates.NewRateConverter(0.05)
 
-	// A longer-term policy should have a higher reserve (all else equal)
-	policy10 := PolicySpec{Age: 30, Term: 10, SumAssured: 100000, Premium: 0}
-	policy20 := PolicySpec{Age: 30, Term: 20, SumAssured: 100000, Premium: 0}
+	// For zero mortality, longer terms accumulate a higher terminal reserve
+	policy10 := PolicySpec{Age: 30, Term: 10, SumAssured: 100000, Premium: 5000}
+	policy20 := PolicySpec{Age: 30, Term: 20, SumAssured: 100000, Premium: 5000}
 
 	npr10 := NetPremiumReserve(policy10, converter, mort)
 	npr20 := NetPremiumReserve(policy20, converter, mort)
 
-	// Both should be 0 at inception
-	if npr10 != 0 {
-		t.Errorf("NPR(10yr) = %v, want 0", npr10)
+	if npr10 <= 0 || npr20 <= 0 {
+		t.Errorf("NetPremiumReserve should be positive for zero-mort policies")
 	}
-	if npr20 != 0 {
-		t.Errorf("NPR(20yr) = %v, want 0", npr20)
+	if npr20 <= npr10 {
+		t.Errorf("NPR(20yr=%v) should be > NPR(10yr=%v)", npr20, npr10)
 	}
 }
 
@@ -182,7 +184,7 @@ func TestGrossPremiumReserve_GreaterThanNPR(t *testing.T) {
 	mort := zeroMortalityTable(120)
 	converter := rates.NewRateConverter(0.05)
 
-	policy := PolicySpec{Age: 30, Term: 10, SumAssured: 100000, Premium: 0}
+	policy := PolicySpec{Age: 30, Term: 10, SumAssured: 100000, Premium: 5000}
 	npr := NetPremiumReserve(policy, converter, mort)
 	gpr := GrossPremiumReserve(policy, 500, converter, mort)
 

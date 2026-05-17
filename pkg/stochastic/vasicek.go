@@ -18,6 +18,9 @@ type VasicekGenerator struct {
 }
 
 // NewVasicekGenerator creates a new VasicekGenerator with the given parameters.
+// initialRate is the starting rate, longTermMean (b) is the long-term average level,
+// meanReversion (a) is the speed at which rates revert to the mean,
+// and volatility (sigma) is the standard deviation of rate changes.
 func NewVasicekGenerator(initialRate, longTermMean, meanReversion, volatility float64) *VasicekGenerator {
 	return &VasicekGenerator{
 		initialRate:   initialRate,
@@ -29,6 +32,8 @@ func NewVasicekGenerator(initialRate, longTermMean, meanReversion, volatility fl
 }
 
 // NewVasicekGeneratorWithSeed creates a VasicekGenerator with a deterministic seed.
+// Parameters: initialRate, longTermMean (b, long-term average), meanReversion (a, speed),
+// volatility (sigma), and a seed for reproducible simulations.
 func NewVasicekGeneratorWithSeed(initialRate, longTermMean, meanReversion, volatility float64, seed uint64) *VasicekGenerator {
 	return &VasicekGenerator{
 		initialRate:   initialRate,

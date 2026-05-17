@@ -9,12 +9,12 @@ import (
 
 // CSVRecord represents a record to be written as CSV
 type CSVRecord struct {
-	Sex          string
-	PolicyType   string
-	Age          int
-	SumAssured   float64
-	Term         int
-	PresentValue float64
+	Sex          string  `json:"sex"`
+	PolicyType   string  `json:"policy_type"`
+	Age          int     `json:"age"`
+	SumAssured   float64 `json:"sum_assured"`
+	Term         int     `json:"term"`
+	PresentValue float64 `json:"present_value"`
 }
 
 // CSVWriter streams CSV records to an io.Writer
