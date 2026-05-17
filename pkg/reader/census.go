@@ -87,7 +87,7 @@ func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int
 		return nil
 	}
 
-	numWorkers := max(min(runtime.NumCPU(), 8), 1)
+	numWorkers := max(runtime.NumCPU(), 1)
 
 	// For small files, use sequential scanner
 	if dataSize < 10*1024*1024 || numWorkers == 1 {

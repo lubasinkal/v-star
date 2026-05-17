@@ -188,7 +188,7 @@ func StreamCSV(filepath string, opts CSVOptions, fn func(fields []string)) error
 		return streamCSVSequentialStr(f, opts, headerOffset, delimiter, fn)
 	}
 
-	numWorkers := max(min(runtime.NumCPU(), 8), 1)
+	numWorkers := max(runtime.NumCPU(), 1)
 	chunkSizeBytes := dataSize / int64(numWorkers)
 	jobs := buildChunks(headerOffset, dataSize, numWorkers)
 
@@ -264,7 +264,7 @@ func StreamCSVRaw(filepath string, opts CSVOptions, fn func(fields [][]byte)) er
 		return streamCSVSequentialRaw(f, opts, headerOffset, delimiter, fn)
 	}
 
-	numWorkers := max(min(runtime.NumCPU(), 8), 1)
+	numWorkers := max(runtime.NumCPU(), 1)
 	chunkSizeBytes := dataSize / int64(numWorkers)
 	jobs := buildChunks(headerOffset, dataSize, numWorkers)
 

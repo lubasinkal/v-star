@@ -39,7 +39,6 @@ func StreamCensusChunked(filepath string, opts StreamOptions, processFn ChunkPro
 	if numWorkers <= 0 {
 		numWorkers = runtime.NumCPU()
 	}
-	numWorkers = min(numWorkers, 8)
 
 	f, err := os.Open(filepath)
 	if err != nil {
