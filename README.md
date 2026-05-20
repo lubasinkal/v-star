@@ -208,9 +208,11 @@ if err := reader.StreamCensusFromReader(os.Stdin, reader.CSVOptions{Header: true
 ./v-star read policies.csv --table=mortality.csv --output=json
 ./v-star read policies.csv --output=csv --limit=10000
 ./v-star read policies.csv --output=report
+./v-star read policies.csv --interest=0.04 --header=true
 
 # Run Monte Carlo
 ./v-star montecarlo --paths=100000 --steps=10 --seed=42
+./v-star montecarlo --paths=1000000 --steps=180 --workers=8 --drift=0.03 --volatility=0.20
 
 # Run benchmark suite
 ./v-star bench
