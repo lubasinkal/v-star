@@ -39,7 +39,7 @@ Why the name? Comes from a joke in class: if premiums compound at rate **j** but
 | **HTTP API** | Call from Python, R, Excel via REST endpoints |
 | **Zero Dependencies** | Standard library only. No pip, no npm, no version hell |
 
-**New in v0.6.1:** Cleaned public API — removed redundant wrappers (StreamCensusWithPV, StreamCSVWithPV, ProcessBatch, ExpectedShortfall). Removed 8-core worker cap — uses all available cores. Added JSON tags to all model structs. Reserve functions now accept any DiscountFactor (no internal type assertions). Reader entry points documented with decision table.
+**New in v0.7.0:** Core interfaces added — `PathGenerator` (stochastic), `ContingencyCalculator` (annuities), `RecordWriter` (writer). Stream from any `io.Reader` via `StreamCensusFromReader`. `JSONRecord`/`CSVRecord` unified into `Record` type. `MortalityTable` now includes `Ex()` and `Lx()`. Parallel Monte Carlo (2.2× faster at 1M paths × 180 steps).
 
 ---
 
@@ -155,6 +155,24 @@ wp := concurrency.NewWorkerPool(8, func(r reader.CensusRecord) float64 {
 })
 totalPV := wp.ProcessBatch(records)
 result, err := wp.ProcessBatchContext(ctx, records)
+
+// Program to interfaces, not concrete types
+var gen stochastic.PathGenerator
+gen = stochastic.NewRateGenerator(0.05, 0.02, 0.15)
+// or: gen = stochastic.NewVasicekGenerator(0.05, 0.04, 0.5, 0.02)
+paths := gen.GeneratePathsParallel(100000, 10, 0, 1.0)
+
+// Pick output format at runtime
+var w writer.RecordWriter
+w = writer.NewRecordWriter(os.Stdout, "json")
+// or: w = writer.NewRecordWriter(os.Stdout, "csv")
+w.WriteRecord(record)
+w.Close()
+
+// Stream census data from any io.Reader
+reader.StreamCensusFromReader(os.Stdin, reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
+    fmt.Println(rec.Age, rec.SumAssured)
+})
 ```
 
 ### CSV Reader — Which one to use
@@ -304,8 +322,8 @@ result = engine.present_value([{"sum_assured": 100000, "term": 20}])
 
 ## What's Coming Next?
 
-- **v0.7.0** — Markov chain models (disability, multiple decrements), credibility theory (Bühlmann)
-- **v0.8.0** — Variance reduction (antithetic variates, control variates, Latin Hypercube)
+- **v0.8.0** — Reserve methods interface, in-memory census source, profit testing
+- **v0.9.0** — Variance reduction (antithetic variates, control variates, Latin Hypercube)
 - **v1.0.0** — Stable API, production-ready, deployment docs (Docker, Fly.io)
 
 Full roadmap: [ROADMAP.md](./ROADMAP.md)
