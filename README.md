@@ -111,74 +111,118 @@ go build -o v-star ./cmd/v-star
 You already know the math:
 
 ```go
-// Present value — like Excel's =PV(0.05, 20, 0, -100000)
-converter := rates.NewRateConverter(0.05)
-pv := converter.PresentValue(100000, 20)  // → 37,688.95
+package main
 
-// Annuity with mortality table
-mort, err := mortality.LoadCSV("mortality.csv")
-if err != nil {
-    log.Fatal(err)
+import (
+    "fmt"
+    "log"
+
+    "github.com/lubasinkal/v-star/pkg/annuities"
+    "github.com/lubasinkal/v-star/pkg/mortality"
+    "github.com/lubasinkal/v-star/pkg/rates"
+    "github.com/lubasinkal/v-star/pkg/reserves"
+)
+
+func main() {
+    // Present value — like Excel's =PV(0.05, 20, 0, -100000)
+    converter := rates.NewRateConverter(0.05)
+    pv := converter.PresentValue(100000, 20)
+    fmt.Printf("PV: %.2f\n", pv) // 37,688.95
+
+    // Build a mortality table inline
+    qx := []float64{0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10}
+    mort := mortality.NewTable("example", qx)
+
+    // Annuity with mortality table
+    ann := annuities.NewAnnuityCalculator(converter, mort)
+    pv = ann.WholeLifeImmediate(65, 1000)
+    fmt.Printf("Annuity PV: %.2f\n", pv)
+
+    // Reserve calculation
+    policy := reserves.PolicySpec{Age: 50, Term: 20, SumAssured: 100000}
+    reserve := reserves.NetPremiumReserve(policy, converter, mort)
+    fmt.Printf("Reserve: %.2f\n", reserve)
+
+    // Multiple decrements (death + lapse combined)
+    death := mortality.NewTable("death", []float64{0, 0.01, 0.02})
+    lapse := mortality.NewTable("lapse", []float64{0, 0.05, 0.10})
+    dt := mortality.NewDecrementTable([]*mortality.Table{death, lapse}, nil)
+    fmt.Printf("Total qx at age 1: %.4f\n", dt.Qx(1))
+    fmt.Printf("Death cause qx at age 1: %.4f\n", dt.QxByCause(1, 0))
 }
-ann := annuities.NewAnnuityCalculator(converter, mort)
-pv = ann.WholeLifeImmediate(65, 1000)    // one line instead of NPV mess
-
-// Reserve calculation (50 lines of VBA → 1 line)
-reserves.NetPremiumReserve(policy, converter, mort)
-
-// Multiple decrements (death + lapse combined)
-dt := mortality.NewDecrementTable([]*mortality.Table{death, lapse}, nil)
-totalQx := dt.Qx(age)        // 1 - (1-qx_death)*(1-qx_lapse)
-causeQx := dt.QxByCause(age, 0)  // approximate independent qx
 ```
 
 ### For Developers
 
 ```go
-// Vasicek mean-reverting rates (instead of GBM)
-vg := stochastic.NewVasicekGenerator(0.05, 0.04, 0.5, 0.02)
-path := vg.GeneratePath(10, 1.0)
+package main
 
-// Monte Carlo + VaR with confidence intervals
-rg := stochastic.NewRateGeneratorWithSeed(0.05, 0.02, 0.15, 42)
-paths := rg.GeneratePaths(100000, 10, 1.0)
-report := risk.ComputeReport(losses)
-fmt.Println(report.VaR95, report.CTE95)        // risk metrics
-fmt.Println(report.Confidence95Lo, report.Confidence95Hi)  // ±1.96σ/√n
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
 
-// Stream a million-row CSV without loading into memory
-totalPV := 0.0
-if err := reader.StreamCensus("policies.csv", reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
-    totalPV += converter.PresentValue(rec.SumAssured, rec.Term)
-}); err != nil {
-    log.Fatal(err)
-}
+    "github.com/lubasinkal/v-star/pkg/concurrency"
+    "github.com/lubasinkal/v-star/pkg/rates"
+    "github.com/lubasinkal/v-star/pkg/reader"
+    "github.com/lubasinkal/v-star/pkg/risk"
+    "github.com/lubasinkal/v-star/pkg/stochastic"
+    "github.com/lubasinkal/v-star/pkg/writer"
+)
 
-// Generic parallel worker pool with context cancellation
-wp := concurrency.NewWorkerPool(8, func(r reader.CensusRecord) float64 {
-    return converter.PresentValue(r.SumAssured, r.Term)
-})
-totalPV = wp.ProcessBatch(records)
-result, err := wp.ProcessBatchContext(ctx, records)
-if err != nil {
-    log.Fatal(err)
-}
+func main() {
+    converter := rates.NewRateConverter(0.05)
 
-// Monte Carlo parallel — concrete types satisfy PathGenerator implicitly
-gen := stochastic.NewRateGenerator(0.05, 0.02, 0.15)
-// or: gen = stochastic.NewVasicekGenerator(0.05, 0.04, 0.5, 0.02)
-paths = gen.GeneratePathsParallel(100000, 10, 0, 1.0)
+    // Vasicek mean-reverting rates (instead of GBM)
+    vg := stochastic.NewVasicekGenerator(0.05, 0.04, 0.5, 0.02)
+    path := vg.GeneratePath(10, 1.0)
+    fmt.Println("Vasicek final rate:", path[10])
 
-// Pick output format at runtime
-w := writer.NewRecordWriter(os.Stdout, "json")
-defer w.Close()
-w.WriteRecord(record)
+    // Monte Carlo + VaR with confidence intervals
+    rg := stochastic.NewRateGeneratorWithSeed(0.05, 0.02, 0.15, 42)
+    paths := rg.GeneratePaths(100000, 10, 1.0)
+    losses := make([]float64, len(paths))
+    for i, p := range paths {
+        losses[i] = 1000000 * (0.05/p[10] - 1)
+        if losses[i] < 0 {
+            losses[i] = 0
+        }
+    }
+    report := risk.ComputeReport(losses)
+    fmt.Printf("VaR 95%%: %.2f, CTE 95%%: %.2f\n", report.VaR95, report.CTE95)
 
-// Stream census data from any io.Reader
-if err := reader.StreamCensusFromReader(os.Stdin, reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
-    fmt.Println(rec.Age, rec.SumAssured)
-}); err != nil {
-    log.Fatal(err)
+    // Stream census records (simulating from memory)
+    records := []reader.CensusRecord{
+        {Age: 30, Sex: "M", PolicyType: "term", SumAssured: 100000, Term: 20},
+        {Age: 45, Sex: "F", PolicyType: "whole", SumAssured: 200000, Term: 15},
+    }
+
+    // Generic parallel worker pool with context cancellation
+    wp := concurrency.NewWorkerPool(4, func(r reader.CensusRecord) float64 {
+        return converter.PresentValue(r.SumAssured, r.Term)
+    })
+    totalPV := wp.ProcessBatch(records)
+    fmt.Printf("Total PV: %.2f\n", totalPV)
+
+    ctx := context.Background()
+    result, err := wp.ProcessBatchContext(ctx, records)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Context result: %.2f\n", result)
+
+    // Monte Carlo parallel — concrete types satisfy PathGenerator implicitly
+    gen := stochastic.NewRateGenerator(0.05, 0.02, 0.15)
+    paths = gen.GeneratePathsParallel(100000, 10, 0, 1.0)
+    fmt.Printf("Generated %d paths in parallel\n", len(paths))
+
+    // Pick output format at runtime
+    w := writer.NewRecordWriter(os.Stdout, "json")
+    defer w.Close()
+    w.WriteRecord(writer.Record{
+        Age: 30, Sex: "M", SumAssured: 100000, Term: 20, PresentValue: 37688.95,
+    })
 }
 ```
 
