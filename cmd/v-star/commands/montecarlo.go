@@ -17,6 +17,7 @@ func MonteCarlo(args []string, interest float64) {
 	steps := 10
 	drift := 0.02
 	volatility := 0.15
+	workers := 0        // 0 means use runtime.NumCPU()
 	var seed int64 = -1 // -1 means random
 
 	for i := 1; i < len(args); i++ {
@@ -51,6 +52,12 @@ func MonteCarlo(args []string, interest float64) {
 					seed = n
 				}
 			}
+		} else if strings.HasPrefix(arg, "--workers=") {
+			if val := strings.Split(arg, "=")[1]; val != "" {
+				if n, err := strconv.Atoi(val); err == nil {
+					workers = n
+				}
+			}
 		}
 	}
 
@@ -59,6 +66,9 @@ func MonteCarlo(args []string, interest float64) {
 		interest*100, drift*100, volatility*100, steps)
 	if seed >= 0 {
 		fmt.Printf("Seed: %d (deterministic)\n", seed)
+	}
+	if workers > 1 {
+		fmt.Printf("Workers: %d (parallel)\n", workers)
 	}
 
 	start := time.Now()
@@ -69,7 +79,7 @@ func MonteCarlo(args []string, interest float64) {
 	} else {
 		rg = stochastic.NewRateGenerator(interest, drift, volatility)
 	}
-	paths := rg.GeneratePaths(numPaths, steps, 1.0)
+	paths := rg.GeneratePathsParallel(numPaths, steps, workers, 1.0)
 
 	duration := time.Since(start)
 

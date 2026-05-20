@@ -3,6 +3,8 @@ package stochastic
 import (
 	"math"
 	"math/rand/v2"
+	"runtime"
+	"sync"
 )
 
 // RatePath represents a sequence of interest rates over time
@@ -16,6 +18,8 @@ type RateGenerator struct {
 	mu          float64
 	sigma       float64
 	driftOffset float64
+	seed        uint64
+	hasSeed     bool
 }
 
 // NewRateGenerator creates a new rate generator with a random seed.
@@ -29,6 +33,7 @@ func NewRateGenerator(initialRate, mu, sigma float64) *RateGenerator {
 		sigma:       sigma,
 		driftOffset: mu - 0.5*sigma*sigma,
 		rng:         rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
+		hasSeed:     false,
 	}
 }
 
@@ -43,6 +48,8 @@ func NewRateGeneratorWithSeed(initialRate, mu, sigma float64, seed uint64) *Rate
 		sigma:       sigma,
 		driftOffset: mu - 0.5*sigma*sigma,
 		rng:         rand.New(rand.NewPCG(seed, 0)),
+		seed:        seed,
+		hasSeed:     true,
 	}
 }
 
@@ -73,5 +80,70 @@ func (rg *RateGenerator) GeneratePaths(numPaths, steps int, dt float64) []RatePa
 		paths[i] = buf[i*stride : i*stride+stride : i*stride+stride]
 		rg.generatePathInto(paths[i], steps, dt)
 	}
+	return paths
+}
+
+// deriveWorkerSeed produces a unique seed for each worker from a base seed.
+func deriveWorkerSeed(baseSeed uint64, workerIdx int) uint64 {
+	return baseSeed + uint64(workerIdx)*6364136223846793005
+}
+
+// GeneratePathsParallel generates multiple interest rate paths in parallel.
+// Each worker goroutine has its own RNG to avoid contention.
+// If numWorkers <= 0, runtime.NumCPU() is used.
+func (rg *RateGenerator) GeneratePathsParallel(numPaths, steps, numWorkers int, dt float64) []RatePath {
+	if numWorkers <= 0 {
+		numWorkers = runtime.NumCPU()
+	}
+	if numWorkers > numPaths {
+		numWorkers = numPaths
+	}
+	if numWorkers == 1 {
+		return rg.GeneratePaths(numPaths, steps, dt)
+	}
+
+	stride := steps + 1
+	buf := make([]float64, numPaths*stride)
+	paths := make([]RatePath, numPaths)
+	for i := range numPaths {
+		paths[i] = buf[i*stride : i*stride+stride : i*stride+stride]
+	}
+
+	driftTerm := rg.driftOffset * dt
+	diffusionFactor := rg.sigma * math.Sqrt(dt)
+	initialRate := rg.initialRate
+
+	var wg sync.WaitGroup
+	chunkSize := (numPaths + numWorkers - 1) / numWorkers
+
+	for w := 0; w < numWorkers; w++ {
+		start := w * chunkSize
+		end := min(start+chunkSize, numPaths)
+		if start >= numPaths {
+			break
+		}
+
+		var workerRng *rand.Rand
+		if rg.hasSeed {
+			workerSeed := deriveWorkerSeed(rg.seed, w)
+			workerRng = rand.New(rand.NewPCG(workerSeed, workerSeed))
+		} else {
+			workerRng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+		}
+
+		wg.Add(1)
+		go func(rng *rand.Rand, start, end int) {
+			defer wg.Done()
+			for i := start; i < end; i++ {
+				path := paths[i]
+				path[0] = initialRate
+				for j := 1; j <= steps; j++ {
+					path[j] = path[j-1] * math.Exp(driftTerm+diffusionFactor*rng.NormFloat64())
+				}
+			}
+		}(workerRng, start, end)
+	}
+
+	wg.Wait()
 	return paths
 }

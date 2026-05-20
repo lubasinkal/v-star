@@ -98,3 +98,58 @@ func TestVasicekGenerator_NilGuards(t *testing.T) {
 		t.Error("nil generator should return 0 for Volatility")
 	}
 }
+
+func TestVasicekGenerator_GeneratePathsParallel(t *testing.T) {
+	vg := NewVasicekGenerator(0.05, 0.04, 0.5, 0.02)
+	paths := vg.GeneratePathsParallel(10, 20, 4, 1.0)
+
+	if len(paths) != 10 {
+		t.Errorf("Expected 10 paths, got %d", len(paths))
+	}
+	for i, path := range paths {
+		if len(path) != 21 {
+			t.Errorf("Path %d: expected length 21, got %d", i, len(path))
+		}
+		if path[0] != 0.05 {
+			t.Errorf("Path %d: expected initial rate 0.05, got %f", i, path[0])
+		}
+	}
+}
+
+func TestVasicekGenerator_ParallelDeterministic(t *testing.T) {
+	seed := uint64(42)
+	numPaths := 50
+	steps := 10
+
+	vg1 := NewVasicekGeneratorWithSeed(0.05, 0.04, 0.5, 0.02, seed)
+	paths1 := vg1.GeneratePathsParallel(numPaths, steps, 4, 1.0)
+
+	vg2 := NewVasicekGeneratorWithSeed(0.05, 0.04, 0.5, 0.02, seed)
+	paths2 := vg2.GeneratePathsParallel(numPaths, steps, 4, 1.0)
+
+	for i := range numPaths {
+		for j := 0; j <= steps; j++ {
+			if paths1[i][j] != paths2[i][j] {
+				t.Errorf("Path %d step %d: %f != %f (parallel deterministic mismatch)",
+					i, j, paths1[i][j], paths2[i][j])
+			}
+		}
+	}
+}
+
+func TestVasicekGenerator_ParallelZeroVolatility(t *testing.T) {
+	vg := NewVasicekGeneratorWithSeed(0.05, 0.04, 0.5, 0, 42)
+	paths := vg.GeneratePathsParallel(10, 5, 4, 1.0)
+
+	// Expected: r_n+1 = r_n + a(b - r_n)*dt
+	expected := 0.05
+	for step := 0; step <= 5; step++ {
+		for i := range paths {
+			if paths[i][step] != expected {
+				t.Errorf("Path %d step %d: expected %.6f, got %.6f",
+					i, step, expected, paths[i][step])
+			}
+		}
+		expected = expected + 0.5*(0.04-expected)
+	}
+}
