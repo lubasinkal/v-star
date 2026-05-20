@@ -188,6 +188,7 @@ if err := reader.StreamCensusFromReader(os.Stdin, reader.CSVOptions{Header: true
 |----------|-------------|
 | `StreamCensus` | Process an actuarial census CSV row by row (auto-detects columns); accumulate your own metrics |
 | `StreamCensusChunked` | Batch processing (database inserts, API calls) |
+| `StreamCensusFromReader` | Stream census data from any `io.Reader` (stdin, HTTP body, in-memory) |
 | `StreamCSV` | Generic CSV with string fields (non-standard column layout) |
 | `StreamCSVRaw` | Generic CSV with zero-allocation byte slices |
 | `GetHeaders` | Inspect column headers before deciding parsing strategy |
