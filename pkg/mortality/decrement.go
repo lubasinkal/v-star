@@ -108,6 +108,27 @@ func (d *DecrementTable) Name() string {
 	return d.names[0]
 }
 
+// Ex returns the curtate expectation of life at the given age.
+// Computed via recurrence using the pre-computed lx table.
+func (d *DecrementTable) Ex(age int) float64 {
+	if d == nil || age < 0 || age > d.maxAge || d.lx[age] == 0 {
+		return 0
+	}
+	sum := 0.0
+	for a := age + 1; a < len(d.lx); a++ {
+		sum += d.lx[a] / d.lx[age]
+	}
+	return sum
+}
+
+// Lx returns the number of lives surviving to the given age from radix 100000.
+func (d *DecrementTable) Lx(age int) float64 {
+	if d == nil || age < 0 || age > d.maxAge {
+		return 0
+	}
+	return d.lx[age]
+}
+
 // CauseNames returns the names of all causes of decrement.
 func (d *DecrementTable) CauseNames() []string {
 	return d.names

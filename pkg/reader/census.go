@@ -67,6 +67,68 @@ func StreamCensus(filepath string, opts CSVOptions, fn func(CensusRecord)) error
 	return streamCensusFlex(filepath, opts, delimiter, colMap, fn)
 }
 
+// StreamCensusFromReader reads census records from any io.Reader.
+// Useful for in-memory data, HTTP bodies, stdin pipes, etc.
+// Uses a sequential scanner (no mmap parallel path since that requires a file).
+// For maximum throughput on large files, use StreamCensus with a file path instead.
+func StreamCensusFromReader(r io.Reader, opts CSVOptions, fn func(CensusRecord)) error {
+	delimiter := opts.Delimiter
+	if delimiter == 0 {
+		delimiter = ','
+	}
+
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 64*1024*1024), 64*1024*1024)
+
+	var colMap ColumnMap
+	var useFastPath bool
+
+	if opts.Header {
+		if !scanner.Scan() {
+			return scanner.Err()
+		}
+		headerBytes := bytes.Clone(scanner.Bytes())
+		headerFields := parseFields(headerBytes, delimiter)
+		colMap = buildColumnMap(headerFields)
+		useFastPath = isDefaultColumnOrder(colMap)
+	} else {
+		useFastPath = true
+		colMap = defaultColumnMap()
+	}
+
+	limit := opts.Limit
+	count := 0
+	for scanner.Scan() {
+		if limit > 0 && count >= limit {
+			break
+		}
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var record CensusRecord
+		var err error
+
+		if useFastPath && line[len(line)-1] != '"' {
+			record, err = parseCensusFastBytes(line, delimiter)
+		} else {
+			fields := parseFields(bytes.Clone(line), delimiter)
+			if useFastPath {
+				record, err = ParseCensusRow(fields, defaultColumnMap())
+			} else {
+				record, err = ParseCensusRow(fields, colMap)
+			}
+		}
+		if err == nil {
+			fn(record)
+			count++
+		} else if opts.OnParseError != nil {
+			opts.OnParseError(count, err)
+		}
+	}
+	return scanner.Err()
+}
+
 // streamCensusFastParallel reads CensusRecords using parallel chunk reading
 // with zero-alloc byte-level parsing. Uses memory-mapped I/O for large files.
 func streamCensusFastParallel(filepath string, opts CSVOptions, headerOffset int64, delimiter byte, fn func(CensusRecord)) error {

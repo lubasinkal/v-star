@@ -1,4 +1,13 @@
-// Package annuities computes annuity values using a discount factor and mortality table.
+// Package annuities computes annuity values and insurance net single premiums.
+//
+// # ContingencyCalculator interface
+//
+// Program to this interface to accept any annuity/NSP implementation:
+//
+//	var calc annuities.ContingencyCalculator
+//	calc = annuities.NewAnnuityCalculator(converter, table)
+//	pv := calc.WholeLifeImmediate(65, 1000)
+//	nsp := calc.TermNSP(30, 20, 100000)
 //
 // # Create an annuity calculator
 //

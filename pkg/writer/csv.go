@@ -7,15 +7,9 @@ import (
 	"strconv"
 )
 
-// CSVRecord represents a record to be written as CSV
-type CSVRecord struct {
-	Sex          string  `json:"sex"`
-	PolicyType   string  `json:"policy_type"`
-	Age          int     `json:"age"`
-	SumAssured   float64 `json:"sum_assured"`
-	Term         int     `json:"term"`
-	PresentValue float64 `json:"present_value"`
-}
+// CSVRecord represents a record to be written as CSV.
+// Type alias for Record for backward compatibility.
+type CSVRecord = Record
 
 // CSVWriter streams CSV records to an io.Writer
 type CSVWriter struct {

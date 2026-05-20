@@ -5,6 +5,22 @@ import (
 	"github.com/lubasinkal/v-star/pkg/rates"
 )
 
+// ContingencyCalculator computes annuity values and insurance net single premiums.
+// It composes a DiscountFactor and MortalityTable to compute present values of
+// life-contingent cash flows. Users can implement this interface to provide
+// alternative calculation methods (e.g., fractional durations, select tables).
+type ContingencyCalculator interface {
+	WholeLifeImmediate(age int, amount float64) float64
+	WholeLifeDue(age int, amount float64) float64
+	TermImmediate(age int, term int, amount float64) float64
+	TermDue(age int, term int, amount float64) float64
+	DeferredWholeLife(age int, deferment int, amount float64) float64
+	DeferredTerm(age int, deferment int, term int, amount float64) float64
+	WholeLifeNSP(age int, sumAssured float64) float64
+	TermNSP(age int, term int, sumAssured float64) float64
+	EndowmentNSP(age int, term int, sumAssured float64) float64
+}
+
 // AnnuityCalculator computes annuity values using a discount factor and mortality table.
 type AnnuityCalculator struct {
 	discount rates.DiscountFactor

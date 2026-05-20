@@ -204,7 +204,7 @@ func (s *Server) monteCarloHandler(w http.ResponseWriter, r *http.Request) {
 		req.Steps = 10
 	}
 
-	var rg *stochastic.RateGenerator
+	var rg stochastic.PathGenerator
 	if req.Seed > 0 {
 		rg = stochastic.NewRateGeneratorWithSeed(req.InitialRate, req.Drift, req.Volatility, uint64(req.Seed))
 	} else {

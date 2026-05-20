@@ -6,15 +6,9 @@ import (
 	"io"
 )
 
-// JSONRecord represents a record to be written as JSON
-type JSONRecord struct {
-	Sex          string  `json:"sex"`
-	PolicyType   string  `json:"policy_type"`
-	Age          int     `json:"age"`
-	SumAssured   float64 `json:"sum_assured"`
-	Term         int     `json:"term"`
-	PresentValue float64 `json:"present_value"`
-}
+// JSONRecord represents a record to be written as JSON.
+// Type alias for Record for backward compatibility.
+type JSONRecord = Record
 
 // JSONWriter streams JSON records to an io.Writer
 type JSONWriter struct {

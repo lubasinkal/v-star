@@ -8,11 +8,13 @@ import (
 
 // MortalityTable defines the interface for mortality data access.
 // Implementations provide mortality rates (qx), survival probabilities (px),
-// and the maximum age defined in the table.
+// curtate life expectancy (ex), survivor count (lx), and the maximum age.
 type MortalityTable interface {
 	Qx(age int) float64
 	Px(age int, term int) float64
 	MaxAge() int
+	Ex(age int) float64
+	Lx(age int) float64
 }
 
 // Table implements MortalityTable using slices of mortality rates.

@@ -1,5 +1,16 @@
 // Package stochastic generates interest rate paths using geometric Brownian motion (GBM).
 //
+// # PathGenerator interface
+//
+// Both RateGenerator (GBM) and VasicekGenerator implement the PathGenerator interface.
+// Program to this interface to accept any stochastic model:
+//
+//	var gen stochastic.PathGenerator
+//	gen = stochastic.NewRateGenerator(0.05, 0.02, 0.15)
+//	// or: gen = stochastic.NewVasicekGenerator(0.05, 0.04, 0.5, 0.02)
+//	paths := gen.GeneratePaths(100000, 10, 1.0)
+//	paths = gen.GeneratePathsParallel(100000, 10, 0, 1.0) // uses all CPUs
+//
 // # Generate a single path
 //
 //	rg := stochastic.NewRateGenerator(0.05, 0.02, 0.15) // initial rate, drift, volatility
