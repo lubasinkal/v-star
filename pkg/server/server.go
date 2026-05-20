@@ -204,11 +204,9 @@ func (s *Server) monteCarloHandler(w http.ResponseWriter, r *http.Request) {
 		req.Steps = 10
 	}
 
-	var rg stochastic.PathGenerator
+	rg := stochastic.NewRateGenerator(req.InitialRate, req.Drift, req.Volatility)
 	if req.Seed > 0 {
 		rg = stochastic.NewRateGeneratorWithSeed(req.InitialRate, req.Drift, req.Volatility, uint64(req.Seed))
-	} else {
-		rg = stochastic.NewRateGenerator(req.InitialRate, req.Drift, req.Volatility)
 	}
 
 	paths := rg.GeneratePaths(req.NumPaths, req.Steps, 1.0)

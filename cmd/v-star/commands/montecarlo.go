@@ -73,11 +73,9 @@ func MonteCarlo(args []string, interest float64) {
 
 	start := time.Now()
 
-	var rg stochastic.PathGenerator
+	rg := stochastic.NewRateGenerator(interest, drift, volatility)
 	if seed >= 0 {
 		rg = stochastic.NewRateGeneratorWithSeed(interest, drift, volatility, uint64(seed))
-	} else {
-		rg = stochastic.NewRateGenerator(interest, drift, volatility)
 	}
 	paths := rg.GeneratePathsParallel(numPaths, steps, workers, 1.0)
 

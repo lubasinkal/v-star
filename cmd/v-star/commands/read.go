@@ -238,7 +238,7 @@ func readWithoutMortality(filepath string, interest float64, header bool, limit 
 	var totalPV float64
 	var allResults []writer.JSONRecord
 
-	reader.StreamCensus(filepath, opts, func(rec reader.CensusRecord) {
+	if err := reader.StreamCensus(filepath, opts, func(rec reader.CensusRecord) {
 		pv := converter.PresentValue(rec.SumAssured, rec.Term)
 		totalPV += pv
 		allResults = append(allResults, writer.JSONRecord{
@@ -249,7 +249,10 @@ func readWithoutMortality(filepath string, interest float64, header bool, limit 
 			Term:         rec.Term,
 			PresentValue: pv,
 		})
-	})
+	}); err != nil {
+		fmt.Printf("Error reading CSV: %v\n", err)
+		exit(1)
+	}
 
 	count := len(allResults)
 	duration := time.Since(start)

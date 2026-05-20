@@ -6,10 +6,6 @@ import (
 	"io"
 )
 
-// JSONRecord represents a record to be written as JSON.
-// Type alias for Record for backward compatibility.
-type JSONRecord = Record
-
 // JSONWriter streams JSON records to an io.Writer
 type JSONWriter struct {
 	writer io.Writer

@@ -116,7 +116,10 @@ converter := rates.NewRateConverter(0.05)
 pv := converter.PresentValue(100000, 20)  // → 37,688.95
 
 // Annuity with mortality table
-mort, _ := mortality.LoadCSV("mortality.csv")
+mort, err := mortality.LoadCSV("mortality.csv")
+if err != nil {
+    log.Fatal(err)
+}
 ann := annuities.NewAnnuityCalculator(converter, mort)
 pv = ann.WholeLifeImmediate(65, 1000)    // one line instead of NPV mess
 
@@ -124,7 +127,7 @@ pv = ann.WholeLifeImmediate(65, 1000)    // one line instead of NPV mess
 reserves.NetPremiumReserve(policy, converter, mort)
 
 // Multiple decrements (death + lapse combined)
-dt := mortality.NewDecrementTable([]*Table{death, lapse}, nil)
+dt := mortality.NewDecrementTable([]*mortality.Table{death, lapse}, nil)
 totalQx := dt.Qx(age)        // 1 - (1-qx_death)*(1-qx_lapse)
 causeQx := dt.QxByCause(age, 0)  // approximate independent qx
 ```
@@ -145,34 +148,38 @@ fmt.Println(report.Confidence95Lo, report.Confidence95Hi)  // ±1.96σ/√n
 
 // Stream a million-row CSV without loading into memory
 totalPV := 0.0
-reader.StreamCensus("policies.csv", reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
+if err := reader.StreamCensus("policies.csv", reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
     totalPV += converter.PresentValue(rec.SumAssured, rec.Term)
-})
+}); err != nil {
+    log.Fatal(err)
+}
 
 // Generic parallel worker pool with context cancellation
 wp := concurrency.NewWorkerPool(8, func(r reader.CensusRecord) float64 {
     return converter.PresentValue(r.SumAssured, r.Term)
 })
-totalPV := wp.ProcessBatch(records)
+totalPV = wp.ProcessBatch(records)
 result, err := wp.ProcessBatchContext(ctx, records)
+if err != nil {
+    log.Fatal(err)
+}
 
-// Program to interfaces, not concrete types
-var gen stochastic.PathGenerator
-gen = stochastic.NewRateGenerator(0.05, 0.02, 0.15)
+// Monte Carlo parallel — concrete types satisfy PathGenerator implicitly
+gen := stochastic.NewRateGenerator(0.05, 0.02, 0.15)
 // or: gen = stochastic.NewVasicekGenerator(0.05, 0.04, 0.5, 0.02)
-paths := gen.GeneratePathsParallel(100000, 10, 0, 1.0)
+paths = gen.GeneratePathsParallel(100000, 10, 0, 1.0)
 
 // Pick output format at runtime
-var w writer.RecordWriter
-w = writer.NewRecordWriter(os.Stdout, "json")
-// or: w = writer.NewRecordWriter(os.Stdout, "csv")
+w := writer.NewRecordWriter(os.Stdout, "json")
+defer w.Close()
 w.WriteRecord(record)
-w.Close()
 
 // Stream census data from any io.Reader
-reader.StreamCensusFromReader(os.Stdin, reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
+if err := reader.StreamCensusFromReader(os.Stdin, reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
     fmt.Println(rec.Age, rec.SumAssured)
-})
+}); err != nil {
+    log.Fatal(err)
+}
 ```
 
 ### CSV Reader — Which one to use

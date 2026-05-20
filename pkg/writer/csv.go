@@ -7,10 +7,6 @@ import (
 	"strconv"
 )
 
-// CSVRecord represents a record to be written as CSV.
-// Type alias for Record for backward compatibility.
-type CSVRecord = Record
-
 // CSVWriter streams CSV records to an io.Writer
 type CSVWriter struct {
 	writer      *csv.Writer

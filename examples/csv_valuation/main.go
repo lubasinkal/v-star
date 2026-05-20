@@ -20,19 +20,25 @@ func main() {
 	fmt.Println("Streaming CSV and computing present values...")
 	totalPV := 0.0
 	count := 0
-	reader.StreamCensus(sampleFile, reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
+	if err := reader.StreamCensus(sampleFile, reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
 		totalPV += converter(rec.SumAssured, rec.Term)
 		count++
-	})
+	}); err != nil {
+		fmt.Printf("Error streaming census: %v\n", err)
+		os.Exit(1)
+	}
 
 	fmt.Printf("Records processed: %d\n", count)
 	fmt.Printf("Total present value: $%.2f\n", totalPV)
 	fmt.Println()
 
 	fmt.Println("Raw CSV rows:")
-	reader.StreamCSV(sampleFile, reader.CSVOptions{Header: true}, func(fields []string) {
+	if err := reader.StreamCSV(sampleFile, reader.CSVOptions{Header: true}, func(fields []string) {
 		fmt.Printf("  %v\n", fields)
-	})
+	}); err != nil {
+		fmt.Printf("Error streaming CSV: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func newPVCalculator(rate float64) func(float64, int) float64 {

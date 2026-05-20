@@ -3,7 +3,6 @@ package writer
 import "io"
 
 // Record is a valuation record with both json and csv struct tags.
-// JSONRecord and CSVRecord are type aliases for backward compatibility.
 type Record struct {
 	Sex          string  `json:"sex" csv:"sex"`
 	PolicyType   string  `json:"policy_type" csv:"policy_type"`
@@ -13,20 +12,41 @@ type Record struct {
 	PresentValue float64 `json:"present_value" csv:"present_value"`
 }
 
-// RecordWriter writes valuation records to an underlying io.Writer.
-// Both JSONWriter and CSVWriter implement this interface.
+// JSONRecord and CSVRecord are type aliases for backward compatibility.
+type JSONRecord = Record
+type CSVRecord = Record
+
+// RecordWriter defines an interface for writing valuation records.
+// Implementations include JSON and CSV formats.
 type RecordWriter interface {
 	WriteRecord(Record) error
 	Close() error
 }
 
+// recordWriter wraps a format-specific writer implementation.
+type recordWriter struct {
+	writeRecordFn func(Record) error
+	closeFn       func() error
+}
+
+func (w *recordWriter) WriteRecord(r Record) error { return w.writeRecordFn(r) }
+func (w *recordWriter) Close() error               { return w.closeFn() }
+
 // NewRecordWriter creates a RecordWriter for the given format.
 // Supported formats: "json", "csv".
-func NewRecordWriter(w io.Writer, format string) RecordWriter {
+func NewRecordWriter(w io.Writer, format string) *recordWriter {
 	switch format {
 	case "csv":
-		return NewCSVWriter(w)
+		cw := NewCSVWriter(w)
+		return &recordWriter{
+			writeRecordFn: cw.WriteRecord,
+			closeFn:       cw.Close,
+		}
 	default:
-		return NewJSONWriter(w)
+		jw := NewJSONWriter(w)
+		return &recordWriter{
+			writeRecordFn: jw.WriteRecord,
+			closeFn:       jw.Close,
+		}
 	}
 }
