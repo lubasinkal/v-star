@@ -42,3 +42,4 @@ tmp/
 temp/
 /examples/python_bridge/uv.lock
 /.opencode
+/graphify-out
