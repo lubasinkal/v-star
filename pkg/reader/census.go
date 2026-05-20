@@ -326,7 +326,7 @@ func streamCensusFlex(filepath string, opts CSVOptions, delimiter byte, colMap C
 // Single-pass: finds all delimiters, then parses numbers from field slices.
 func parseCensusFastBytes(line []byte, delimiter byte) (CensusRecord, error) {
 	if len(line) == 0 {
-		return CensusRecord{}, errors.New("empty line")
+		return CensusRecord{}, errors.New("reader: empty line")
 	}
 
 	// Find all 4 delimiter positions in one pass
@@ -347,13 +347,13 @@ func parseCensusFastBytes(line []byte, delimiter byte) (CensusRecord, error) {
 	}
 
 	if c4 < 0 {
-		return CensusRecord{}, errors.New("invalid line format: expected 5 fields")
+		return CensusRecord{}, errors.New("reader: invalid line format, expected 5 fields")
 	}
 
 	// Parse age from field 1
 	age, ok := parseFastInt(line[:c1])
 	if !ok || age < 0 {
-		return CensusRecord{}, errors.New("invalid age field")
+		return CensusRecord{}, errors.New("reader: invalid age field")
 	}
 
 	// Extract sex (field 2) and policy_type (field 3) as interned strings
@@ -363,7 +363,7 @@ func parseCensusFastBytes(line []byte, delimiter byte) (CensusRecord, error) {
 	// Parse sum_assured from field 4
 	sumAssured, ok := parseFastFloat(line[c3+1 : c4])
 	if !ok || sumAssured < 0 {
-		return CensusRecord{}, errors.New("invalid sum_assured field")
+		return CensusRecord{}, errors.New("reader: invalid sum_assured field")
 	}
 
 	// Parse term from field 5 (trim trailing \r)
@@ -373,7 +373,7 @@ func parseCensusFastBytes(line []byte, delimiter byte) (CensusRecord, error) {
 	}
 	term, ok := parseFastInt(termField)
 	if !ok || term < 0 {
-		return CensusRecord{}, errors.New("invalid term field")
+		return CensusRecord{}, errors.New("reader: invalid term field")
 	}
 
 	return CensusRecord{
@@ -472,7 +472,7 @@ func parseFastFloat(b []byte) (float64, bool) {
 // using the provided column mapping.
 func ParseCensusRow(fields []string, colMap ColumnMap) (CensusRecord, error) {
 	if len(fields) == 0 {
-		return CensusRecord{}, errors.New("empty row")
+		return CensusRecord{}, errors.New("reader: empty row")
 	}
 
 	record := CensusRecord{}

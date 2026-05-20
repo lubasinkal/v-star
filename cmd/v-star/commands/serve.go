@@ -3,30 +3,21 @@ package commands
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/lubasinkal/v-star/pkg/server"
 )
 
 func Serve(args []string) {
 	port := "8080"
-	for i, arg := range args {
-		if arg == "--port" && i+1 < len(args) {
-			port = args[i+1]
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--port=") {
+			if val := strings.SplitN(arg, "=", 2)[1]; val != "" {
+				port = val
+			}
 		}
 		if arg == "--help" || arg == "-h" {
-			fmt.Println("Usage: v-star serve [--port=8080]")
-			fmt.Println("")
-			fmt.Println("Start the v-star HTTP API server.")
-			fmt.Println("")
-			fmt.Println("Endpoints:")
-			fmt.Println("  GET  /health              - Health check")
-			fmt.Println("  POST /value               - Calculate present value")
-			fmt.Println("  POST /montecarlo          - Run Monte Carlo simulation")
-			fmt.Println("  POST /convert-rate        - Convert between nominal/effective rates")
-			fmt.Println("  GET  /mortality/{table}   - Get mortality table info")
-			fmt.Println("  POST /export/csv          - Export valuation records as CSV")
-			fmt.Println("  POST /export/report       - Export valuation as text report")
-			fmt.Println("  POST /upload/csv          - Upload CSV file for valuation")
+			printServeHelp()
 			os.Exit(0)
 		}
 	}
@@ -39,4 +30,20 @@ func Serve(args []string) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func printServeHelp() {
+	fmt.Println(`Usage: v-star serve [--port=8080]
+
+Start the v-star HTTP API server.
+
+Endpoints:
+  GET  /health              - Health check
+  POST /value               - Calculate present value
+  POST /montecarlo          - Run Monte Carlo simulation
+  POST /convert-rate        - Convert between nominal/effective rates
+  GET  /mortality/{table}   - Get mortality table info
+  POST /export/csv          - Export valuation records as CSV
+  POST /export/report       - Export valuation as text report
+  POST /upload/csv          - Upload CSV file for valuation`)
 }

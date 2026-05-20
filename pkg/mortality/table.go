@@ -127,39 +127,52 @@ func loadCSVToMemory(filepath string) (*Table, error) {
 	}
 	lines := parseLines(data)
 	if len(lines) < 2 {
-		return nil, errors.New("mortality table must have at least header and one data row")
+		return nil, errors.New("mortality: table must have at least header and one data row")
 	}
 	header := lines[0]
 	colMap := detectColumns(header)
-	ageIdx := colMap["age"]
-	qxIdx := colMap["qx"]
-	pxIdx, hasPx := colMap["px"]
-	if !hasPx {
-		pxIdx = -1
+	ageIdx, ageOk := colMap["age"]
+	qxIdx, qxOk := colMap["qx"]
+	pxIdx, pxOk := colMap["px"]
+	if !ageOk {
+		return nil, errors.New("mortality: age column required")
 	}
-	if ageIdx < 0 {
-		return nil, errors.New("age column required")
+	if !qxOk && !pxOk {
+		return nil, errors.New("mortality: either qx or px column required")
 	}
-	if qxIdx < 0 && pxIdx < 0 {
-		return nil, errors.New("either qx or px column required")
-	}
-	name := extractName(filepath)
-	qx := make([]float64, len(lines)-1)
-	if qxIdx >= 0 {
+	var qx []float64
+	if qxOk {
 		for i := 1; i < len(lines); i++ {
 			fields := splitCSV(lines[i])
 			age := parseInt(fields[ageIdx])
-			qx[age] = parseFloat(fields[qxIdx])
+			q := parseFloat(fields[qxIdx])
+			if age >= len(qx) {
+				qx = append(qx, make([]float64, age-len(qx)+1)...)
+			}
+			qx[age] = q
 		}
-	} else if pxIdx >= 0 {
+	} else if pxOk {
+		pxVals := make(map[int]float64)
 		for i := 1; i < len(lines); i++ {
 			fields := splitCSV(lines[i])
 			age := parseInt(fields[ageIdx])
 			px := parseFloat(fields[pxIdx])
-			if age > 0 && age < len(qx) {
+			pxVals[age] = px
+		}
+		maxA := 0
+		for age := range pxVals {
+			if age > maxA {
+				maxA = age
+			}
+		}
+		qx = make([]float64, maxA+1)
+		for age, px := range pxVals {
+			if age == 0 {
+				qx[age] = 1 - px
+			} else {
 				prevPx := 1.0
-				for a := range age {
-					prevPx *= (1 - qx[a])
+				for a := 0; a < age; a++ {
+					prevPx *= 1 - qx[a]
 				}
 				if prevPx > 0 {
 					qx[age-1] = 1 - px/prevPx
@@ -167,7 +180,7 @@ func loadCSVToMemory(filepath string) (*Table, error) {
 			}
 		}
 	}
-	return NewTable(name, qx), nil
+	return NewTable(extractName(filepath), qx), nil
 }
 
 func StreamCSV(filepath string, fn func(age int, qx float64)) error {
@@ -197,17 +210,17 @@ func streamCSVSmall(file *os.File, fn func(age int, qx float64)) error {
 	}
 	header := lines[0]
 	colMap := detectColumns(header)
-	ageIdx := colMap["age"]
-	qxIdx := colMap["qx"]
-	pxIdx, hasPx := colMap["px"]
-	if !hasPx {
-		pxIdx = -1
+	ageIdx, ageOk := colMap["age"]
+	qxIdx, qxOk := colMap["qx"]
+	pxIdx, pxOk := colMap["px"]
+	if !ageOk {
+		return errors.New("mortality: age column required")
 	}
-	if qxIdx < 0 && pxIdx < 0 {
-		return errors.New("either qx or px column required")
+	if !qxOk && !pxOk {
+		return errors.New("mortality: either qx or px column required")
 	}
 	var qx []float64
-	if qxIdx >= 0 {
+	if qxOk {
 		for i := 1; i < len(lines); i++ {
 			fields := splitCSV(lines[i])
 			age := parseInt(fields[ageIdx])
@@ -264,17 +277,14 @@ func streamCSVParallel(filepath string, fn func(age int, qx float64)) error {
 	}
 	header := lines[0]
 	colMap := detectColumns(header)
-	ageIdx := colMap["age"]
-	qxIdx := colMap["qx"]
-	pxIdx, hasPx := colMap["px"]
-	if !hasPx {
-		pxIdx = -1
-	}
-	if ageIdx < 0 || (qxIdx < 0 && pxIdx < 0) {
-		return errors.New("invalid column structure")
+	ageIdx, ageOk := colMap["age"]
+	qxIdx, qxOk := colMap["qx"]
+	pxIdx, pxOk := colMap["px"]
+	if !ageOk || (!qxOk && !pxOk) {
+		return errors.New("mortality: invalid column structure")
 	}
 	pxVals := make(map[int]float64)
-	if pxIdx >= 0 {
+	if pxOk {
 		for i := 1; i < len(lines); i++ {
 			fields := splitCSV(lines[i])
 			age := parseInt(fields[ageIdx])
@@ -466,3 +476,6 @@ func maxAge(m map[int]float64) int {
 	}
 	return max
 }
+
+// compile-time checks: *Table satisfies MortalityTable
+var _ MortalityTable = (*Table)(nil)

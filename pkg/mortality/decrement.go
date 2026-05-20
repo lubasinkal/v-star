@@ -138,3 +138,6 @@ func (d *DecrementTable) CauseNames() []string {
 func (d *DecrementTable) NumCauses() int {
 	return len(d.tables)
 }
+
+// compile-time check: *DecrementTable satisfies MortalityTable
+var _ MortalityTable = (*DecrementTable)(nil)

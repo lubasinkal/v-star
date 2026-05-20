@@ -317,7 +317,10 @@ func (s *Server) StreamCSVHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.Remove(tempFile.Name())
 
-	io.Copy(tempFile, file)
+	if _, err := io.Copy(tempFile, file); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	tempFile.Close()
 
 	reader.StreamCensus(tempFile.Name(), opts, func(rec reader.CensusRecord) {

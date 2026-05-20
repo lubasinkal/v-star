@@ -222,3 +222,6 @@ func (a *AnnuityCalculator) EndowmentNSP(age int, term int, sumAssured float64) 
 	survivalBenefit := sumAssured * a.mort.Px(age, term) * a.discount.Discount(term)
 	return termInsurance + survivalBenefit
 }
+
+// compile-time check: *AnnuityCalculator satisfies ContingencyCalculator
+var _ ContingencyCalculator = (*AnnuityCalculator)(nil)

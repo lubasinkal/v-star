@@ -7,7 +7,11 @@ import (
 )
 
 func main() {
-	f, _ := os.Create("10M.csv")
+	f, err := os.Create("10M.csv")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating file: %v\n", err)
+		os.Exit(1)
+	}
 	defer f.Close()
 	fmt.Fprintln(f, "age,sex,policy_type,sum_assured,term")
 	for range 10000000 {

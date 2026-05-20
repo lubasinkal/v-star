@@ -147,3 +147,6 @@ func (rg *RateGenerator) GeneratePathsParallel(numPaths, steps, numWorkers int, 
 	wg.Wait()
 	return paths
 }
+
+// compile-time check: *RateGenerator satisfies PathGenerator
+var _ PathGenerator = (*RateGenerator)(nil)

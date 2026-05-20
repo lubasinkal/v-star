@@ -177,3 +177,6 @@ func (vg *VasicekGenerator) Volatility() float64 {
 	}
 	return vg.volatility
 }
+
+// compile-time check: *VasicekGenerator satisfies PathGenerator
+var _ PathGenerator = (*VasicekGenerator)(nil)

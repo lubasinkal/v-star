@@ -50,3 +50,6 @@ func NewRecordWriter(w io.Writer, format string) *recordWriter {
 		}
 	}
 }
+
+// compile-time check: *recordWriter satisfies RecordWriter
+var _ RecordWriter = (*recordWriter)(nil)
