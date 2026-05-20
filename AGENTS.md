@@ -73,6 +73,8 @@ examples/
 
 ## Code Style Guidelines
 
+All code is required to meet [Effective Go](https://go.dev/doc/effective_go) ; A document that gives tips for writing clear, idiomatic Go code. A must read for any new Go programmer. It augments the tour and the language specification, both of which should be read first.
+
 ### Formatting and Style
 - Run `go fmt ./...` before committing code
 - Use the `gofmt` tool for consistent formatting
