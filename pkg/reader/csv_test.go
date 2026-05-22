@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -126,12 +127,13 @@ func TestGetHeaders(t *testing.T) {
 func TestStreamCSVParallel(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "large.csv")
-	content := "age,term,sum\n"
-	for i := 0; i < 5000; i++ {
-		content += fmt.Sprintf("%d,%d,%d\n", i%50+20, i%20+1, 100000+i)
+	var content strings.Builder
+	content.WriteString("age,term,sum\n")
+	for i := range 5000 {
+		content.WriteString(fmt.Sprintf("%d,%d,%d\n", i%50+20, i%20+1, 100000+i))
 	}
 
-	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(content.String()), 0644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -173,9 +175,9 @@ func TestCSVOptions(t *testing.T) {
 }
 
 func makeRows(n int) string {
-	var rows string
-	for i := 0; i < n; i++ {
-		rows += fmt.Sprintf("%d,%d,%d\n", i%50+20, i%20+1, 100000+i)
+	var rows strings.Builder
+	for i := range n {
+		rows.WriteString(fmt.Sprintf("%d,%d,%d\n", i%50+20, i%20+1, 100000+i))
 	}
-	return rows
+	return rows.String()
 }

@@ -275,7 +275,7 @@ func (s *Server) mortalityHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"name":   table.Name(),
 		"maxAge": table.MaxAge(),
 	})

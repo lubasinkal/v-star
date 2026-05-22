@@ -331,7 +331,7 @@ func TestStreamCSVLarge(t *testing.T) {
 	tmpFile := filepath.Join(tmpDir, "large.csv")
 	var lines []string
 	lines = append(lines, "age,qx")
-	for i := 0; i < 2000; i++ {
+	for i := range 2000 {
 		lines = append(lines, fmt.Sprintf("%d,0.00%d", i, i%10))
 	}
 	content := []byte(strings.Join(lines, "\n"))
@@ -358,7 +358,7 @@ func TestStreamCSVLargeWithPx(t *testing.T) {
 	var lines []string
 	lines = append(lines, "age,px")
 	px := 1.0
-	for i := 0; i < 2000; i++ {
+	for i := range 2000 {
 		lines = append(lines, fmt.Sprintf("%d,%.4f", i, px))
 		px *= 0.999
 	}

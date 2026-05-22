@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 	"text/template"
 	"time"
@@ -93,9 +94,7 @@ func FormatAssumptions(interestRate float64, mortalityTable string, additional m
 	if mortalityTable != "" {
 		assumptions["Mortality Table"] = mortalityTable
 	}
-	for k, v := range additional {
-		assumptions[k] = v
-	}
+	maps.Copy(assumptions, additional)
 	return assumptions
 }
 
