@@ -1,42 +1,39 @@
 # Roadmap
 
-**Current**: v0.6.1 — API Cleanup & Production Readiness
-(Removed redundant convenience wrappers, removed 8-core worker cap, JSON tags on all models, reserves accept any DiscountFactor, reader entry points documented with decision table)
+**Current**: v0.7.0 — Core Interfaces & Parallel Monte Carlo
+(Core interfaces stabilized, parallel MC path generation, version injection via ldflags, unified Record type)
 
-## v1.0.0 — Stable Core (Mid-May 2026)
-The "show to employers / put on CV" version. No breaking changes after this.
-
-- Lock public API (pkg/vstar)
-- 90%+ test coverage (add table-driven tests for annuities, reserves, stochastic)
+## v0.8.0 — CLI & API Polish (Early June 2026)
+- Reserve methods interface (gross/net premium, prospective, retrospective)
+- In-memory census source (CensusSource interface)
+- Profit testing / cashflow projection basics
+- Lock public API surface (no breaking changes after this)
 - Comprehensive error handling + validation
 - Deployment examples (Dockerfile for `serve`, Fly.io / Railway one-click)
-- "Used by" section starter in README (even if just "personal projects" for now)
+
+## v1.0.0 — Stable Core (Mid-June 2026)
+The "show to employers / put on CV" version.
+
+- 90%+ test coverage
+- "Used by" section starter in README
 - Tag v1.0.0 + announce on r/actuary, LinkedIn, Go subreddit
 
-## v1.1.0 — Advanced Life Models (Late May / Early June 2026)
-Add the models actuaries actually ask for next.
-
-Pick any 3 (or all if momentum is good):
+## v1.1.0 — Advanced Life Models (Late June / Early July 2026)
 - Markov chain models (disability, multiple decrements, termination)
 - Credibility theory (Bühlmann, Bühlmann-Straub)
-- Enhanced stochastic: Vasicek / CIR interest rate models
-- Percentiles, confidence intervals, and TVaR improvements
+- CIR interest rate model
+- Percentiles / TVaR improvements
 
-## v1.2.0 — Variance Reduction & Speed (June 2026)
-Make Monte Carlo even more impressive.
-
+## v1.2.0 — Variance Reduction (July 2026)
 - Antithetic variates
 - Control variates
 - Latin Hypercube sampling
 - Target: 2–5x variance reduction on typical risk metrics
-- Optional: parallel workers (runtime.GOMAXPROCS) for multi-core speed boost
 
 ## v2.0.0 — Ecosystem & Usability (Q3 2026)
-Wider adoption push.
-
-- Official `vstar-py` wrapper on PyPI (thin HTTP client + pandas integration)
+- Official `vstar-py` on PyPI (thin HTTP client + pandas integration)
 - Simple plugin system for custom cashflow logic
-- Lightweight dashboard example (pure Go templates + HTMX or separate Streamlit/Gradio)
+- Lightweight dashboard example (pure Go templates + HTMX/Streamlit)
 - Public benchmark repo or GitHub Pages "try it live" (hosted `serve` instance)
 
 ---
@@ -44,5 +41,5 @@ Wider adoption push.
 **Guiding principles**
 - 1–3 weekends per version max
 - Zero external dependencies forever (std lib only)
-- Performance first: keep the 28M rows/sec streaming and sub-second Monte Carlo as selling points
+- Performance first: keep the 360M rows/sec streaming and sub-second Monte Carlo as selling points
 - Focus on what actuaries actually run daily: valuations, reserves, stochastic risk

@@ -39,7 +39,7 @@ Why the name? Comes from a joke in class: if premiums compound at rate **j** but
 | **HTTP API** | Call from Python, R, Excel via REST endpoints |
 | **Zero Dependencies** | Standard library only. No pip, no npm, no version hell |
 
-**New in v0.7.0:** Core interfaces added — `PathGenerator` (stochastic), `ContingencyCalculator` (annuities), `RecordWriter` (writer). Stream from any `io.Reader` via `StreamCensusFromReader`. `JSONRecord`/`CSVRecord` unified into `Record` type. `MortalityTable` now includes `Ex()` and `Lx()`. Parallel Monte Carlo (2.2× faster at 1M paths × 180 steps).
+**New:** Core interfaces added — `PathGenerator` (stochastic), `ContingencyCalculator` (annuities), `RecordWriter` (writer). Stream from any `io.Reader` via `StreamCensusFromReader`. `JSONRecord`/`CSVRecord` unified into `Record` type. `MortalityTable` now includes `Ex()` and `Lx()`. Parallel Monte Carlo (2.2× faster at 1M paths × 180 steps).
 
 ---
 
@@ -376,9 +376,8 @@ result = engine.present_value([{"sum_assured": 100000, "term": 20}])
 
 ## What's Coming Next?
 
-- **v0.8.0** — Reserve methods interface, in-memory census source, profit testing
-- **v0.9.0** — Variance reduction (antithetic variates, control variates, Latin Hypercube)
-- **v1.0.0** — Stable API, production-ready, deployment docs (Docker, Fly.io)
+- **v0.8.0** — Reserve methods interface, in-memory census source, profit testing, deployment docs
+- **v1.0.0** — Stable API, 90%+ test coverage, 
 
 Full roadmap: [ROADMAP.md](./ROADMAP.md)
 
