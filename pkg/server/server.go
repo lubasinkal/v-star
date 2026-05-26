@@ -15,14 +15,13 @@ import (
 
 // Server holds the HTTP server configuration and routes.
 type Server struct {
-	addr              string
-	MortalityTableDir string
-	server            *http.Server
+	addr   string
+	server *http.Server
 }
 
 // New creates a new Server configured to listen on addr.
 func New(addr string) *Server {
-	return &Server{addr: addr, MortalityTableDir: "mortality"}
+	return &Server{addr: addr}
 }
 
 // routes registers all handler patterns and returns the composed handler.
@@ -32,10 +31,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /value", s.pvHandler)
 	mux.HandleFunc("POST /montecarlo", s.monteCarloHandler)
 	mux.HandleFunc("POST /convert-rate", s.convertRateHandler)
-	mux.HandleFunc("GET /mortality/", s.mortalityHandler)
-	mux.HandleFunc("POST /export/csv", s.exportCSVHandler)
-	mux.HandleFunc("POST /export/report", s.exportReportHandler)
-	mux.HandleFunc("POST /upload/csv", s.StreamCSVHandler)
+	mux.HandleFunc("POST /upload/csv", s.uploadCSVHandler)
 
 	return middleware.CreateStack(
 		middleware.Logging,

@@ -3,13 +3,11 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/lubasinkal/v-star/pkg/concurrency"
-	"github.com/lubasinkal/v-star/pkg/mortality"
 	"github.com/lubasinkal/v-star/pkg/rates"
 	"github.com/lubasinkal/v-star/pkg/reader"
 	"github.com/lubasinkal/v-star/pkg/risk"
@@ -52,7 +50,7 @@ type MonteCarloRequest struct {
 }
 
 type MonteCarloResponse struct {
-	Paths        []stochastic.RatePath `json:"paths"`
+	Paths        []stochastic.RatePath `json:"paths,omitempty"`
 	Mean         float64               `json:"mean"`
 	StdDev       float64               `json:"std_dev"`
 	VaR95        float64               `json:"var_95"`
@@ -78,7 +76,6 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-// pvHandler computes present value for a batch of records.
 func (s *Server) pvHandler(w http.ResponseWriter, r *http.Request) {
 	var req PVRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&req); err != nil {
@@ -88,13 +85,12 @@ func (s *Server) pvHandler(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 	totalPV := computePresentValues(req)
-	elapsed := time.Since(start)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(PVResponse{
 		TotalPV:      totalPV,
 		RecordCount:  len(req.Records),
-		ProcessingMs: elapsed.Milliseconds(),
+		ProcessingMs: time.Since(start).Milliseconds(),
 	})
 }
 
@@ -128,7 +124,6 @@ func (s *Server) monteCarloHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	report := risk.ComputeReport(losses)
-	elapsed := time.Since(start)
 
 	w.Header().Set("Content-Type", "application/json")
 	resp := MonteCarloResponse{
@@ -136,7 +131,7 @@ func (s *Server) monteCarloHandler(w http.ResponseWriter, r *http.Request) {
 		StdDev:       report.StdDev,
 		VaR95:        report.VaR95,
 		CTE95:        report.CTE95,
-		ProcessingMs: elapsed.Milliseconds(),
+		ProcessingMs: time.Since(start).Milliseconds(),
 	}
 	if req.IncludePaths {
 		resp.Paths = paths
@@ -152,12 +147,11 @@ func (s *Server) convertRateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var effective, nominal float64
-
 	switch req.FromType {
 	case "nominal":
 		nominal = req.FromRate
 		effective = rates.NominalToEffective(req.FromRate, req.Compounding)
-	default: // "effective"
+	default:
 		effective = req.FromRate
 		nominal = rates.EffectiveToNominal(req.FromRate, req.Compounding)
 	}
@@ -169,27 +163,7 @@ func (s *Server) convertRateHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) mortalityHandler(w http.ResponseWriter, r *http.Request) {
-	tableName := r.URL.Path[len("/mortality/"):]
-	if tableName == "" {
-		http.Error(w, "table name required", http.StatusBadRequest)
-		return
-	}
-
-	table, err := mortality.LoadCSV(filepath.Join(s.MortalityTableDir, tableName+".csv"))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"name":   table.Name(),
-		"maxAge": table.MaxAge(),
-	})
-}
-
-func (s *Server) StreamCSVHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) uploadCSVHandler(w http.ResponseWriter, r *http.Request) {
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -197,87 +171,34 @@ func (s *Server) StreamCSVHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	rate, _ := parseRate(r.FormValue("rate"))
-	if rate == 0 {
-		rate = 0.05
+	rate := 0.05
+	if v := r.FormValue("rate"); v != "" {
+		if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+			rate = parsed
+		}
 	}
 
 	converter := rates.NewRateConverter(rate)
-	var csvRecords []writer.CSVRecord
+	var records []writer.CSVRecord
 
 	reader.StreamCensusFromReader(file, reader.CSVOptions{Header: true}, func(rec reader.CensusRecord) {
-		pv := converter.PresentValue(rec.SumAssured, rec.Term)
-		csvRecords = append(csvRecords, writer.CSVRecord{
-			Sex:          rec.Sex,
-			PolicyType:   rec.PolicyType,
-			Age:          rec.Age,
-			SumAssured:   rec.SumAssured,
-			Term:         rec.Term,
-			PresentValue: pv,
-		})
-	})
-
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", `attachment; filename="export.csv"`)
-	if err := writer.StreamCSV(csvRecords, w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) exportCSVHandler(w http.ResponseWriter, r *http.Request) {
-	var req PVRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	converter := rates.NewRateConverter(req.InterestRate)
-	records := make([]writer.CSVRecord, 0, len(req.Records))
-	for _, rec := range req.Records {
 		records = append(records, writer.CSVRecord{
 			Sex:          rec.Sex,
 			PolicyType:   rec.PolicyType,
 			Age:          rec.Age,
 			SumAssured:   rec.SumAssured,
 			Term:         rec.Term,
-			PresentValue: pvForRecord(rec, converter, req.RateJ),
+			PresentValue: converter.PresentValue(rec.SumAssured, rec.Term),
 		})
-	}
+	})
 
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", `attachment; filename="export.csv"`)
-	if err := writer.StreamCSV(records, w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) exportReportHandler(w http.ResponseWriter, r *http.Request) {
-	var req PVRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	totalPV := computePresentValues(req)
-	assumptions := writer.FormatAssumptions(req.InterestRate, "", nil)
-	data := writer.ReportData{
-		Title:             "Actuarial Valuation Report",
-		InterestRate:      req.InterestRate,
-		RecordCount:       len(req.Records),
-		TotalPresentValue: totalPV,
-		Assumptions:       assumptions,
-	}
-
-	w.Header().Set("Content-Type", "text/plain")
-	if err := writer.StreamTextReport(data, w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	w.Header().Set("Content-Disposition", `attachment; filename="results.csv"`)
+	writer.StreamCSV(records, w)
 }
 
 // --- Helpers -----------------------------------------------------------------
 
-// computePresentValues returns the sum of present values for all records.
-// Uses parallel processing for batches over 1000 records.
 func computePresentValues(req PVRequest) float64 {
 	converter := rates.NewRateConverter(req.InterestRate)
 
@@ -299,22 +220,9 @@ func computePresentValues(req PVRequest) float64 {
 	return total
 }
 
-// pvForRecord computes the present value for a single record, optionally using v*.
 func pvForRecord(rec PVRecord, converter *rates.RateConverter, rateJ float64) float64 {
 	if rateJ > 0 {
 		return converter.PresentValueStar(rec.SumAssured, rec.Term, rateJ)
 	}
 	return converter.PresentValue(rec.SumAssured, rec.Term)
-}
-
-// parseRate parses a rate string, returning 0 on empty input.
-func parseRate(s string) (float64, error) {
-	if s == "" {
-		return 0, nil
-	}
-	v, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return 0, nil
-	}
-	return v, nil
 }

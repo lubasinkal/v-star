@@ -107,9 +107,6 @@ curl -X POST http://localhost:8080/montecarlo \
 | `/value` | POST | Calculate present value for a batch of records |
 | `/montecarlo` | POST | Run Monte Carlo simulation, get VaR/CTE |
 | `/convert-rate` | POST | Convert between nominal and effective rates |
-| `/mortality/{table}` | GET | Get mortality table metadata |
-| `/export/csv` | POST | Export valuation records as CSV download |
-| `/export/report` | POST | Export valuation as a formatted text report |
 | `/upload/csv` | POST | Upload a CSV file for valuation (multipart form) |
 
 ## See Also
