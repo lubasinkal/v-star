@@ -34,7 +34,8 @@ vendor/
 .DS_Store
 Thumbs.db
 
-# Ruff cache
+# Python
+__pycache__/
 .ruff_cache/
 
 # Temporary files
