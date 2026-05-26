@@ -133,8 +133,6 @@ func (s *Server) StartWithGracefulShutdown() error {
 	return s.server.Shutdown(shutdownCtx)
 }
 
-
-
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
