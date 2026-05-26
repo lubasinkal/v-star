@@ -1,173 +1,119 @@
-# vstar-py
+# v-star HTTP API — Use from Any Language
 
-Python wrapper for [v-star](https://github.com/lubasinkal/v-star) — high-performance zero-dependency actuarial engine.
-
-## Installation
-
-```bash
-# Basic (no pandas)
-pip install vstar-py
-
-# With pandas support
-pip install vstar-py[pandas]
-
-# Full (pandas + requests for HTTP)
-pip install vstar-py[all]
-```
+v-star's HTTP server is the universal interface. Any language that can make HTTP requests
+(Python, R, JavaScript, Excel VBA, Julia, Rust, etc.) can use the full actuarial engine.
 
 ## Quick Start
 
-### Local Mode (no server needed)
-
-```python
-import pandas as pd
-from vstar_py import VStarLocal
-
-# Create engine
-engine = VStarLocal()
-
-# Single calculation
-pv = engine.present_value(100000, 20)
-print(f"PV: {pv:,.2f}")  # PV: 37,688.95
-
-# DataFrame with pandas
-df = pd.read_csv("policies.csv")
-df = engine.present_value_df(df)
-print(df.head())
+```bash
+# Start the server
+v-star serve --port=8080
 ```
 
-### HTTP Mode (requires server)
+## Python Example
+
+The `vstar.py` module in this directory is a ready-to-use Python client:
 
 ```python
-from vstar_py import VStar
+from vstar import VStar
 
-# Connect to server (start with: v-star serve --port=8080)
 engine = VStar("http://localhost:8080")
 
 # Present value
 result = engine.present_value([
-    {"sum_assured": 100000, "term": 20, "age": 30}
+    {"sum_assured": 100000, "term": 20}
 ])
 print(f"Total PV: {result['total_pv']}")
 
 # Monte Carlo with risk metrics
-result = engine.risk_report(num_paths=100000)
+result = engine.monte_carlo(
+    num_paths=100000, steps=10,
+    initial_rate=0.05, drift=0.02, volatility=0.15
+)
 print(f"VaR 95%: {result['var_95']}")
-print(f"CTE 95%: {result['cte_95']}")
 
-# Convert rate
+# Rate conversion
 result = engine.convert_rate(0.05, "effective", 12)
-print(f"Nominal: {result['nominal_rate']}")
+print(f"Nominal rate: {result['nominal_rate']}")
 ```
 
-### Using Data Files
+## R Example
 
-```python
-import pandas as pd
-from vstar_py import VStar, VStarLocal
-
-# CSV file with policies
-df = pd.read_csv("policies.csv")
-print(df.head())
-#     age  sex  policy_type  sum_assured  term
-# 0    30   M          term     100000     20
-# 1    35   F        whole     250000     10
-
-# Local mode (pure Python, no server)
-engine = VStarLocal()
-df = engine.present_value_df(df, sum_col="sum_assured", term_col="term")
-print(df)
-#     age  sex  policy_type  sum_assured  term  present_value
-# 0    30   M          term     100000     20       37689.50
-# 1    35   F        whole     250000     10       95146.88
-
-# Or use server for larger datasets
-engine = VStar()
-df = engine.value_batch(df, sum_col="sum_assured", term_col="term", age_col="age")
-```
-
-## API Reference
-
-### `VStarLocal()` - Local mode (no server)
-
-Pure Python calculations, no v-star server needed.
-
-```python
-engine = VStarLocal(rate=0.05)  # Default 5% interest
-
-# Single PV
-engine.present_value(100000, 20)
-
-# DataFrame
-engine.present_value_df(df, sum_col="sum_assured", term_col="term")
-
-# Annuity
-engine.annuity_immediate(20)  # term annuity immediate
-engine.annuity_due(20)        # term annuity due
-
-# Discount factor
-engine.discount_factor(10)  # v^10
-```
-
-### `VStar(url)` - HTTP mode
-
-Requires v-star server running.
-
-```python
-engine = VStar("http://localhost:8080")
+```r
+library(httr)
 
 # Present value
-engine.present_value(records, interest_rate=0.05)
-
-# DataFrame with server
-engine.present_value_df(df, sum_col="sum_col", term_col="term_col")
+body <- list(
+  interest_rate = 0.05,
+  records = list(list(sum_assured = 100000, term = 20))
+)
+resp <- POST("http://localhost:8080/value", body = body, encode = "json")
+content(resp)
 
 # Monte Carlo
-engine.monte_carlo_df(num_paths=100000)
-engine.risk_report(num_paths=100000)
-
-# Batch processing
-engine.value_batch(df, sum_col="sum", term_col="term")
+body <- list(
+  num_paths = 100000, steps = 10,
+  initial_rate = 0.05, drift = 0.02, volatility = 0.15
+)
+resp <- POST("http://localhost:8080/montecarlo", body = body, encode = "json")
+content(resp)
 ```
 
-### `VStarCLI()` - CLI mode
+## JavaScript Example
 
-Uses v-star CLI binary directly.
+```javascript
+// Present value
+const resp = await fetch("http://localhost:8080/value", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    interest_rate: 0.05,
+    records: [{ sum_assured: 100000, term: 20 }]
+  })
+});
+console.log(await resp.json());
 
-```python
-cli = VStarCLI()
-cli.monte_carlo(paths=100000, steps=10)
-cli.read_csv("policies.csv", benchmark=True)
+// Monte Carlo
+const mcResp = await fetch("http://localhost:8080/montecarlo", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    num_paths: 100000, steps: 10,
+    initial_rate: 0.05, drift: 0.02, volatility: 0.15
+  })
+});
+console.log(await mcResp.json());
 ```
 
-## Starting the Server
+## cURL
 
 ```bash
-# Install v-star
-go install github.com/lubasinkal/v-star/cmd/v-star
+# Present value
+curl -X POST http://localhost:8080/value \
+  -H "Content-Type: application/json" \
+  -d '{"interest_rate":0.05,"records":[{"sum_assured":100000,"term":20}]}'
 
-# Start server
-v-star serve --port=8080
+# Monte Carlo
+curl -X POST http://localhost:8080/montecarlo \
+  -H "Content-Type: application/json" \
+  -d '{"num_paths":100000,"steps":10,"initial_rate":0.05}'
 ```
 
-Or with Python:
+## API Endpoints
 
-```python
-from vstar_py import VStarCLI
-proc = cli.serve(port=8080)
-# ...
-proc.terminate()
-```
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/value` | POST | Calculate present value for a batch of records |
+| `/montecarlo` | POST | Run Monte Carlo simulation, get VaR/CTE |
+| `/convert-rate` | POST | Convert between nominal and effective rates |
+| `/mortality/{table}` | GET | Get mortality table metadata |
+| `/export/csv` | POST | Export valuation records as CSV download |
+| `/export/report` | POST | Export valuation as a formatted text report |
+| `/upload/csv` | POST | Upload a CSV file for valuation (multipart form) |
 
-## Requirements
+## See Also
 
-- Python 3.9+
-- (Optional) pandas for DataFrame support
-
-## Examples
-
-See `demo.ipynb` for Jupyter notebook examples.
-
-## License
-
-MIT — see [v-star LICENSE](https://github.com/lubasinkal/v-star/blob/main/LICENSE).
+- `vstar.py` — Full Python HTTP client with pandas integration
+- `demo.ipynb` — Jupyter notebook with usage examples
+- [Main README](https://github.com/lubasinkal/v-star#readme) — Full documentation

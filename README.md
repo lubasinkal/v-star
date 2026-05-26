@@ -342,13 +342,17 @@ resp = requests.post("http://localhost:8080/upload/csv",
 print(resp.text)
 ```
 
-Or use `examples/python_bridge/vstar.py`:
+Or use `examples/python_bridge/vstar.py` — a zero-dependency HTTP client:
 
 ```python
 from vstar import VStar
 engine = VStar("http://localhost:8080")
 result = engine.present_value([{"sum_assured": 100000, "term": 20}])
 ```
+
+**v-star's HTTP API works from any language** — Python, R, JavaScript,
+Excel VBA, Julia, Rust, etc. See [examples/python_bridge/](./examples/python_bridge/)
+for Python, R, JS, and cURL examples.
 
 ---
 
@@ -369,7 +373,7 @@ result = engine.present_value([{"sum_assured": 100000, "term": 20}])
 | **Actuarial student** | Learn by reading the code. Fast calculations for assignments. |
 | **Actuary** | Replace slow Excel/VBA. Process big censuses in seconds. |
 | **Analyst** | Stream big CSVs without crashing. Get results, not errors. |
-| **Developer** | Build insurance/risk tools without bloated dependencies. |
+| **Developer** | Build insurance/risk tools via HTTP API from any language. |
 | **Risk manager** | Run Monte Carlo + VaR in production. Fast. |
 
 ---
