@@ -33,7 +33,7 @@ func TestPVHandlerInvalidMethod(t *testing.T) {
 	req := httptest.NewRequest("GET", "/value", nil)
 	w := httptest.NewRecorder()
 
-	(&Server{}).pvHandler(w, req)
+	New(":0").routes().ServeHTTP(w, req)
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
@@ -76,7 +76,7 @@ func TestMonteCarloHandlerInvalidMethod(t *testing.T) {
 	req := httptest.NewRequest("GET", "/montecarlo", nil)
 	w := httptest.NewRecorder()
 
-	(&Server{}).monteCarloHandler(w, req)
+	New(":0").routes().ServeHTTP(w, req)
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
@@ -203,7 +203,7 @@ func TestExportCSVHandlerInvalidMethod(t *testing.T) {
 	req := httptest.NewRequest("GET", "/export/csv", nil)
 	w := httptest.NewRecorder()
 
-	(&Server{}).exportCSVHandler(w, req)
+	New(":0").routes().ServeHTTP(w, req)
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
@@ -236,7 +236,7 @@ func TestExportReportHandlerInvalidMethod(t *testing.T) {
 	req := httptest.NewRequest("GET", "/export/report", nil)
 	w := httptest.NewRecorder()
 
-	(&Server{}).exportReportHandler(w, req)
+	New(":0").routes().ServeHTTP(w, req)
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)

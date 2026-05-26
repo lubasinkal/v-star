@@ -25,26 +25,29 @@ func New(addr string) *Server {
 	return &Server{addr: addr, MortalityTableDir: "mortality"}
 }
 
-// Start registers routes and begins listening.
-func (s *Server) Start() error {
+// routes registers all handler patterns and returns the composed handler.
+func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", s.healthHandler)
-	mux.HandleFunc("/value", s.pvHandler)
-	mux.HandleFunc("/montecarlo", s.monteCarloHandler)
-	mux.HandleFunc("/convert-rate", s.convertRateHandler)
-	mux.HandleFunc("/mortality/", s.mortalityHandler)
-	mux.HandleFunc("/export/csv", s.exportCSVHandler)
-	mux.HandleFunc("/export/report", s.exportReportHandler)
-	mux.HandleFunc("/upload/csv", s.StreamCSVHandler)
+	mux.HandleFunc("GET /health", s.healthHandler)
+	mux.HandleFunc("POST /value", s.pvHandler)
+	mux.HandleFunc("POST /montecarlo", s.monteCarloHandler)
+	mux.HandleFunc("POST /convert-rate", s.convertRateHandler)
+	mux.HandleFunc("GET /mortality/", s.mortalityHandler)
+	mux.HandleFunc("POST /export/csv", s.exportCSVHandler)
+	mux.HandleFunc("POST /export/report", s.exportReportHandler)
+	mux.HandleFunc("POST /upload/csv", s.StreamCSVHandler)
 
-	handler := middleware.CreateStack(
+	return middleware.CreateStack(
 		middleware.Logging,
 		middleware.CORS,
 	)(mux)
+}
 
+// Start registers routes and begins listening.
+func (s *Server) Start() error {
 	s.server = &http.Server{
 		Addr:         s.addr,
-		Handler:      handler,
+		Handler:      s.routes(),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

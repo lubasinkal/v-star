@@ -80,11 +80,6 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 
 // pvHandler computes present value for a batch of records.
 func (s *Server) pvHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req PVRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -104,11 +99,6 @@ func (s *Server) pvHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) monteCarloHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req MonteCarloRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -155,11 +145,6 @@ func (s *Server) monteCarloHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) convertRateHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req ConvertRateRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -240,11 +225,6 @@ func (s *Server) StreamCSVHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) exportCSVHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req PVRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -272,11 +252,6 @@ func (s *Server) exportCSVHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) exportReportHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req PVRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
