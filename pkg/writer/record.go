@@ -7,7 +7,7 @@ type Record struct {
 	Sex          string  `json:"sex" csv:"sex"`
 	PolicyType   string  `json:"policy_type" csv:"policy_type"`
 	Age          int     `json:"age" csv:"age"`
-	SumAssured   float64 `json:"sum_assured" csv:"sum_assumed"`
+	SumAssured   float64 `json:"sum_assured" csv:"sum_assured"`
 	Term         int     `json:"term" csv:"term"`
 	PresentValue float64 `json:"present_value" csv:"present_value"`
 }
