@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -26,12 +27,24 @@ func New(addr string) *Server {
 
 // routes registers all handler patterns and returns the composed handler.
 func (s *Server) routes() http.Handler {
+	// Per-route concurrency limits, scaled to available CPU cores.
+	// Heavy CPU endpoints get 1×NumCPU, lighter I/O-bound get 4×NumCPU.
+	cpu := runtime.NumCPU()
+	valueLim := middleware.NewConcurrencyLimiter(4 * cpu)
+	simLim := middleware.NewConcurrencyLimiter(cpu)
+	annLim := middleware.NewConcurrencyLimiter(4 * cpu)
+	reserveLim := middleware.NewConcurrencyLimiter(4 * cpu)
+
+	// Result cache for idempotent pure-function endpoints.
+	annCache := middleware.NewCache(1000)
+	reserveCache := middleware.NewCache(1000)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.healthHandler)
-	mux.HandleFunc("POST /value", s.pvHandler)
-	mux.HandleFunc("POST /simulate", s.simulateHandler)
-	mux.HandleFunc("POST /annuity", s.annuityHandler)
-	mux.HandleFunc("POST /reserve", s.reserveHandler)
+	mux.Handle("POST /value", valueLim.Wrap(http.HandlerFunc(s.pvHandler)))
+	mux.Handle("POST /simulate", simLim.Wrap(http.HandlerFunc(s.simulateHandler)))
+	mux.Handle("POST /annuity", annCache.Wrap(annLim.Wrap(http.HandlerFunc(s.annuityHandler))))
+	mux.Handle("POST /reserve", reserveCache.Wrap(reserveLim.Wrap(http.HandlerFunc(s.reserveHandler))))
 
 	return middleware.CreateStack(
 		middleware.Logging,
