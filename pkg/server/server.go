@@ -28,12 +28,14 @@ func New(addr string) *Server {
 // routes registers all handler patterns and returns the composed handler.
 func (s *Server) routes() http.Handler {
 	// Per-route concurrency limits, scaled to available CPU cores.
+	// Each limiter has a FIFO wait queue (2× max concurrent) so traffic
+	// bursts queue briefly instead of returning 503 immediately.
 	// Heavy CPU endpoints get 1×NumCPU, lighter I/O-bound get 4×NumCPU.
 	cpu := runtime.NumCPU()
-	valueLim := middleware.NewConcurrencyLimiter(4 * cpu)
-	simLim := middleware.NewConcurrencyLimiter(cpu)
-	annLim := middleware.NewConcurrencyLimiter(4 * cpu)
-	reserveLim := middleware.NewConcurrencyLimiter(4 * cpu)
+	valueLim := middleware.NewConcurrencyLimiterV(4 * cpu)
+	simLim := middleware.NewConcurrencyLimiterV(cpu)
+	annLim := middleware.NewConcurrencyLimiterV(4 * cpu)
+	reserveLim := middleware.NewConcurrencyLimiterV(4 * cpu)
 
 	// Result cache for idempotent pure-function endpoints.
 	annCache := middleware.NewCache(1000)

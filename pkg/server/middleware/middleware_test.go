@@ -78,7 +78,7 @@ func TestLogging(t *testing.T) {
 }
 
 func TestConcurrencyLimiter_PassesThrough(t *testing.T) {
-	limiter := NewConcurrencyLimiter(1)
+	limiter := NewConcurrencyLimiter(1, time.Second)
 	called := false
 	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -97,30 +97,51 @@ func TestConcurrencyLimiter_PassesThrough(t *testing.T) {
 	}
 }
 
-func TestConcurrencyLimiter_RejectsWhenFull(t *testing.T) {
-	limiter := NewConcurrencyLimiter(2)
+func TestConcurrencyLimiter_WaitsForSlot(t *testing.T) {
+	limiter := NewConcurrencyLimiter(1, time.Second)
+	order := make(chan int, 3)
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate work
+		for range 5000000 {
+		}
+		order <- 1
+	})
+	handler := limiter.Wrap(next)
+
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	// Request 1 takes the slot.
+	go handler.ServeHTTP(httptest.NewRecorder(), req)
+	time.Sleep(20 * time.Millisecond)
+
+	// Request 2 blocks on the semaphore waiting for a slot.
+	go handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	// Both should complete within 1s timeout.
+	<-order
+	<-order
+}
+
+func TestConcurrencyLimiter_TimesOut(t *testing.T) {
+	limiter := NewConcurrencyLimiter(1, 50*time.Millisecond)
 	block := make(chan struct{})
 
-	handler := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-block // blocks until we unblock
-		w.WriteHeader(http.StatusOK)
-	}))
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block
+	})
+	handler := limiter.Wrap(next)
 
-	// Fill both slots.
-	w1 := httptest.NewRecorder()
+	// Request 1 takes the slot and blocks.
+	go handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/test", nil))
+	time.Sleep(20 * time.Millisecond)
+
+	// Request 2 waits 50ms, gets 503.
 	w2 := httptest.NewRecorder()
-	go handler.ServeHTTP(w1, httptest.NewRequest("GET", "/test", nil))
-	go handler.ServeHTTP(w2, httptest.NewRequest("GET", "/test", nil))
+	handler.ServeHTTP(w2, httptest.NewRequest("GET", "/test", nil))
 
-	// Wait for goroutines to acquire slots.
-	time.Sleep(50 * time.Millisecond)
-
-	// Third request should get 503.
-	w3 := httptest.NewRecorder()
-	handler.ServeHTTP(w3, httptest.NewRequest("GET", "/test", nil))
-
-	if w3.Code != http.StatusServiceUnavailable {
-		t.Errorf("third request status = %d, want 503", w3.Code)
+	if w2.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503, got %d", w2.Code)
 	}
 
 	close(block)
@@ -222,7 +243,7 @@ func TestCache_MaxSizeEviction(t *testing.T) {
 	}))
 
 	// Fill cache with 3 different requests (maxSize=2).
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		body := []byte(`{"i":` + string(rune('0'+i)) + `}`)
 		req := httptest.NewRequest("POST", "/test", bytes.NewReader(body))
 		w := httptest.NewRecorder()

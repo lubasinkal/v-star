@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -108,9 +109,7 @@ func cacheKey(path string, body []byte) string {
 }
 
 func copyHeaders(dst, src http.Header) {
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 }
 
 func cloneHeaders(src http.Header) http.Header {
