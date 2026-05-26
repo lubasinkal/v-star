@@ -29,9 +29,9 @@ func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.healthHandler)
 	mux.HandleFunc("POST /value", s.pvHandler)
-	mux.HandleFunc("POST /montecarlo", s.monteCarloHandler)
-	mux.HandleFunc("POST /convert-rate", s.convertRateHandler)
-	mux.HandleFunc("POST /upload/csv", s.uploadCSVHandler)
+	mux.HandleFunc("POST /simulate", s.simulateHandler)
+	mux.HandleFunc("POST /annuity", s.annuityHandler)
+	mux.HandleFunc("POST /reserve", s.reserveHandler)
 
 	return middleware.CreateStack(
 		middleware.Logging,

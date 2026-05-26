@@ -6,15 +6,9 @@ Usage:
     engine = VStar("http://localhost:8080")
     result = engine.present_value([{"sum_assured": 100000, "term": 20}])
     print(result)
-
-    # Or use the CLI subprocess wrapper:
-    from vstar import VStarCLI
-    cli = VStarCLI("./v-star.exe")
-    result = cli.monte_carlo(paths=100000, steps=10)
 """
 
 import json
-import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -64,190 +58,148 @@ class VStar:
             rate_j: Growth rate for v-star calculation
 
         Returns:
-            {"total_pv": float, "record_count": int}
+            {"total_pv": float, "record_count": int, "processing_ms": int}
         """
-        data = {
-            "interest_rate": interest_rate,
-            "records": records,
-        }
+        data = {"interest_rate": interest_rate, "records": records}
         if rate_j > 0:
             data["rate_j"] = rate_j
-
         return self._request("/value", data)
 
-    def monte_carlo(
+    def simulate(
         self,
-        num_paths: int = 100000,
-        steps: int = 10,
+        model: str = "gbm",
         initial_rate: float = 0.05,
         drift: float = 0.02,
         volatility: float = 0.15,
+        long_term_mean: float = 0.05,
+        mean_reversion: float = 0.2,
+        num_paths: int = 10000,
+        steps: int = 10,
+        dt: float = 1.0,
         seed: int = 0,
+        include_paths: bool = False,
+        num_workers: int = 0,
     ) -> dict:
         """
-        Run Monte Carlo simulation.
+        Run stochastic simulation (GBM or Vasicek) with risk metrics.
 
         Args:
-            num_paths: Number of paths to generate
-            steps: Number of time steps
-            initial_rate: Initial interest rate
-            drift: Drift parameter
-            volatility: Volatility
-            seed: Random seed (0 for random)
+            model: "gbm" (geometric Brownian motion) or "vasicek"
+            initial_rate: Starting interest rate
+            drift: GBM drift parameter (μ)
+            volatility: Volatility (σ)
+            long_term_mean: Vasicek long-term mean (b)
+            mean_reversion: Vasicek speed of mean reversion (a)
+            num_paths: Number of simulation paths
+            steps: Number of time steps per path
+            dt: Time increment between steps
+            seed: Random seed (0 = random)
+            include_paths: Include full path data in response
+            num_workers: Parallel workers (0 = auto)
 
         Returns:
-            {"paths": [...], "mean": float, "var_95": float, "cte_95": float}
+            {"paths": [...], "mean": float, "std_dev": float,
+             "var_95": float, "cte_95": float, "processing_ms": int}
         """
         data = {
+            "model": model,
             "initial_rate": initial_rate,
             "drift": drift,
             "volatility": volatility,
             "num_paths": num_paths,
             "steps": steps,
+            "dt": dt,
         }
+        if model == "vasicek":
+            data["long_term_mean"] = long_term_mean
+            data["mean_reversion"] = mean_reversion
         if seed > 0:
             data["seed"] = seed
+        if include_paths:
+            data["include_paths"] = True
+        if num_workers > 0:
+            data["num_workers"] = num_workers
+        return self._request("/simulate", data)
 
-        return self._request("/montecarlo", data)
-
-    def convert_rate(
+    def annuity(
         self,
-        from_rate: float,
-        from_type: str = "effective",
-        compounding: int = 1,
+        interest_rate: float,
+        qxs: list[float],
+        age: int,
+        amount: float,
+        computation: str,
+        term: int = 0,
+        deferment: int = 0,
     ) -> dict:
         """
-        Convert between nominal and effective rates.
+        Compute life-contingent annuity or net single premium.
 
         Args:
-            from_rate: Rate to convert
-            from_type: "effective" or "nominal"
-            compounding: Compounding periods (1=annual, 2=semi-annual, 4=quarterly, 12=monthly)
+            interest_rate: Effective annual interest rate
+            qxs: Mortality rates (qx) indexed by age, starting at 0
+            age: Attained age
+            amount: Payment amount or sum assured
+            computation: One of:
+                whole_life_immediate, whole_life_due,
+                term_immediate, term_due,
+                deferred_whole_life, deferred_term,
+                whole_life_nsp, term_nsp, endowment_nsp
+            term: Policy term (required for term/deferred/endowment)
+            deferment: Deferral period (for deferred computations)
 
         Returns:
-            {"effective_rate": float, "nominal_rate": float}
+            {"present_value": float, "processing_ms": int}
         """
         data = {
-            "from_rate": from_rate,
-            "from_type": from_type,
-            "compounding": compounding,
+            "interest_rate": interest_rate,
+            "qxs": qxs,
+            "age": age,
+            "amount": amount,
+            "computation": computation,
         }
-        return self._request("/convert-rate", data)
+        if term > 0:
+            data["term"] = term
+        if deferment > 0:
+            data["deferment"] = deferment
+        return self._request("/annuity", data)
 
-    def mortality(self, table: str) -> dict:
-        """Get mortality table info."""
-        import urllib.request
-        import urllib.error
-
-        url = f"{self.base_url}/mortality/{table}"
-        req = urllib.request.Request(url)
-
-        try:
-            with urllib.request.urlopen(req) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            raise RuntimeError(f"HTTP {e.code}: {e.read().decode()}")
-
-
-class VStarCLI:
-    """CLI wrapper calling v-star binary directly."""
-
-    def __init__(self, binary_path: str = "./v-star.exe"):
-        self.binary = Path(binary_path)
-        if not self.binary.exists():
-            raise FileNotFoundError(
-                f"v-star binary not found at {binary_path}. "
-                "Build it first: go build -o v-star.exe ./cmd/v-star"
-            )
-
-    def version(self) -> str:
-        """Get v-star version."""
-        result = subprocess.run(
-            [str(self.binary), "--version"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-
-    def discount_factors(self, rate: float = 0.05, growth: float = 0.02) -> dict:
-        """Calculate discount factors."""
-        result = subprocess.run(
-            [str(self.binary), "-i", str(rate), "-j", str(growth)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        output = result.stdout
-        return {"output": output}
-
-    def monte_carlo(
+    def reserve(
         self,
-        paths: int = 100000,
-        steps: int = 10,
-        drift: float = 0.02,
-        volatility: float = 0.15,
-        seed: int = -1,
-        rate: float = 0.05,
-    ) -> str:
-        """Run Monte Carlo simulation via CLI."""
-        cmd = [
-            str(self.binary),
-            "montecarlo",
-            f"--paths={paths}",
-            f"--steps={steps}",
-            f"--drift={drift}",
-            f"--volatility={volatility}",
-            "-i",
-            str(rate),
-        ]
-        if seed >= 0:
-            cmd.append(f"--seed={seed}")
+        interest_rate: float,
+        qxs: list[float],
+        age: int,
+        term: int,
+        sum_assured: float,
+        method: str,
+        premium: float = 0.0,
+        expenses: float = 0.0,
+    ) -> dict:
+        """
+        Calculate policy reserve.
 
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return result.stdout
+        Args:
+            interest_rate: Effective annual interest rate
+            qxs: Mortality rates (qx) indexed by age, starting at 0
+            age: Attained age at issue
+            term: Policy term
+            sum_assured: Face amount of insurance
+            method: One of: net_premium, gross_premium, prospective, retrospective
+            premium: Annual premium (required for prospective/retrospective)
+            expenses: Annual expenses (for gross_premium)
 
-    def read_csv(
-        self,
-        filepath: str,
-        interest: float = 0.05,
-        output: str = "json",
-        benchmark: bool = False,
-        table: str = "",
-    ) -> str:
-        """Read CSV file and calculate valuations."""
-        cmd = [
-            str(self.binary),
-            "read",
-            filepath,
-            f"--interest={interest}",
-            f"--output={output}",
-        ]
-        if benchmark:
-            cmd.append("--benchmark")
-        if table:
-            cmd.append(f"--table={table}")
-
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return result.stdout
-
-    def serve(self, port: int = 8080) -> subprocess.Popen:
-        """Start v-star server (returns process handle)."""
-        return subprocess.Popen(
-            [str(self.binary), "serve", "--port", str(port)],
-        )
-
-
-def generate_monte_carlo_paths(
-    binary_path: str = "./v-star.exe",
-    num_paths: int = 10000,
-    steps: int = 10,
-    drift: float = 0.02,
-    volatility: float = 0.15,
-    seed: int = 42,
-) -> str:
-    """Standalone function for CLI Monte Carlo."""
-    cli = VStarCLI(binary_path)
-    return cli.monte_carlo(
-        paths=num_paths, steps=steps, drift=drift, volatility=volatility, seed=seed
-    )
+        Returns:
+            {"reserve": float, "processing_ms": int}
+        """
+        data = {
+            "interest_rate": interest_rate,
+            "qxs": qxs,
+            "age": age,
+            "term": term,
+            "sum_assured": sum_assured,
+            "method": method,
+        }
+        if premium > 0:
+            data["premium"] = premium
+        if expenses > 0:
+            data["expenses"] = expenses
+        return self._request("/reserve", data)

@@ -104,10 +104,10 @@ curl -X POST http://localhost:8080/montecarlo \
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/value` | POST | Calculate present value for a batch of records |
-| `/montecarlo` | POST | Run Monte Carlo simulation, get VaR/CTE |
-| `/convert-rate` | POST | Convert between nominal and effective rates |
-| `/upload/csv` | POST | Upload a CSV file for valuation (multipart form) |
+| `/value` | POST | Present value calculation (batch records) |
+| `/simulate` | POST | Stochastic simulation — GBM or Vasicek + risk metrics (VaR, CTE) |
+| `/annuity` | POST | Life-contingent annuity and net single premium calculations |
+| `/reserve` | POST | Policy reserve calculations (net/gross/premium/prospective/retrospective) |
 
 ## See Also
 
