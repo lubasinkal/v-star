@@ -45,3 +45,5 @@ temp/
 /.opencode
 /graphify-out
 .gemini/settings.json
+cover.out
+cover.html
