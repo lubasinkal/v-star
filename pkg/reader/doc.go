@@ -50,6 +50,46 @@
 //	        fmt.Println(rec.Age, rec.SumAssured)
 //	    })
 //
+// # CensusSource — abstract over where census data comes from
+//
+// The same function can accept a CensusSource parameter and work with
+// any source — CSV file, in-memory slice, HTTP body, or stdin:
+//
+//	func totalPV(src reader.CensusSource, rate float64) float64 {
+//	    conv := rates.NewRateConverter(rate)
+//	    var total float64
+//	    src.Stream(func(r reader.CensusRecord) error {
+//	        total += conv.PresentValue(r.SumAssured, r.Term)
+//	        return nil
+//	    })
+//	    return total
+//	}
+//
+//	// From a CSV file:
+//	src := reader.NewFileCensusSource("policies.csv",
+//	    reader.CSVOptions{Header: true})
+//	fmt.Println(totalPV(src, 0.05))
+//
+//	// From an in-memory slice:
+//	src = reader.NewSliceCensusSource([]reader.CensusRecord{
+//	    {Age: 30, SumAssured: 100000, Term: 20},
+//	})
+//	fmt.Println(totalPV(src, 0.05))
+//
+//	// From an HTTP request body:
+//	src = reader.NewReaderCensusSource(r.Body,
+//	    reader.CSVOptions{Header: true})
+//	fmt.Println(totalPV(src, 0.05))
+//
+// # ReaderCensusSource — from any io.Reader
+//
+// Useful for HTTP request bodies, stdin, bytes.Buffer, etc.
+// Uses sequential scanning (no mmap), so prefer FileCensusSource
+// for large files on disk.
+//
+//	reader.NewReaderCensusSource(os.Stdin, reader.CSVOptions{Header: true})
+//	reader.NewReaderCensusSource(r.Body, reader.CSVOptions{Header: true})
+//
 // # Generic CSV (not actuarial census format)
 //
 //	reader.StreamCSV("data.csv", reader.CSVOptions{Header: true},
