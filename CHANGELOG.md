@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For future plans, see [ROADMAP.md](./ROADMAP.md).
 
-## [Unreleased]
+## [0.8.0] - 2026-05-27
 
 ### Added
 - Core interfaces: `PathGenerator` (stochastic), `ContingencyCalculator` (annuities), `RecordWriter` (writer)
@@ -19,15 +19,19 @@ For future plans, see [ROADMAP.md](./ROADMAP.md).
 - `AGENTS.md` with development guide for AI coding agents
 - `CensusSource` interface with 3 implementations (`SliceCensusSource`, `FileCensusSource`, `ReaderCensusSource`)
 - `pkg/profit` — profit testing / cashflow projection with profit signature, PV of profits, profit margin, IRR, payback year
+- API freeze audit (`docs/adr/API_FREEZE_AUDIT.md`) — 8 packages stable, public API locked
+- Multi-language API client examples (Python, R, JS, TS, cURL)
 
 ### Changed
 - Reader coverage: 51% → 75% (StreamCensus, StreamCensusFromReader, StreamCSVRaw, parallel paths)
 - Annuities coverage: 78% → 94% (DeferredTerm, ApproxWholeLifeImmediate)
 - Server coverage: 68% → 82% (all 9 annuity computations, 4 reserve methods, validation errors)
-
-### Changed
-- Updated README code examples to be self-contained and runnable
+- Updated README code examples to match current API endpoints
 - Renamed `JSONRecord`/`CSVRecord` → unified `Record` type
+- Removed old `examples/python_bridge/` in favor of `examples/api-clients/`
+
+### Removed
+- `ParseStats` type (unexported, dead code)
 - Applied Effective Go patterns across codebase (idiomatic naming, error handling, concurrency)
 - All benchmarks migrated to `b.Loop()` (Go 1.24+)
 - Cleaned up repo: removed build artifacts, Python `__pycache__`, large test CSVs
@@ -209,6 +213,7 @@ For future plans, see [ROADMAP.md](./ROADMAP.md).
 - JSON output support for integration with other tools
 - Comprehensive test suite with benchmarks
 
+[0.8.0]: https://github.com/lubasinkal/v-star/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/lubasinkal/v-star/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/lubasinkal/v-star/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/lubasinkal/v-star/compare/v0.5.2...v0.6.0
