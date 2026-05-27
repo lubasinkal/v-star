@@ -12,6 +12,9 @@
 // | Read a generic CSV with raw bytes             | StreamCSVRaw             |
 // | Stream from any io.Reader                     | StreamCensusFromReader   |
 // | Inspect column headers before processing      | GetHeaders               |
+// | Abstract over census source type              | CensusSource interface   |
+// |   — in-memory records                         | NewSliceCensusSource     |
+// |   — CSV file                                  | NewFileCensusSource      |
 //
 // # Quick start — process an actuarial census CSV
 //
