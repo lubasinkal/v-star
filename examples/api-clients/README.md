@@ -15,54 +15,46 @@ v-star serve --port=8080
 ## Python
 
 ```python
-import urllib.request, json
+import requests
 
 BASE = "http://localhost:8080"
 
-def post(path, data):
-    body = json.dumps(data).encode()
-    req = urllib.request.Request(f"{BASE}{path}", data=body,
-        headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
-
 # --- Present value ---
-result = post("/value", {
+result = requests.post(f"{BASE}/value", json={
     "interest_rate": 0.05,
     "records": [{"sum_assured": 100000, "term": 20}]
-})
+}).json()
 print(result["total_pv"], result["record_count"])
 
 # --- Monte Carlo + risk metrics ---
-result = post("/simulate", {
+result = requests.post(f"{BASE}/simulate", json={
     "num_paths": 10000,
     "steps": 10,
     "initial_rate": 0.05,
     "drift": 0.02,
     "volatility": 0.15,
-    "include_paths": False
-})
+}).json()
 print(result["var_95"], result["cte_95"])
 
 # --- Annuity / NSP ---
-result = post("/annuity", {
+result = requests.post(f"{BASE}/annuity", json={
     "interest_rate": 0.05,
     "qxs": [0.001] * 111,          # qx from age 0..110
     "age": 30,
     "amount": 1000,
     "computation": "whole_life_immediate"
-})
+}).json()
 print(result["present_value"])
 
 # --- Reserve ---
-result = post("/reserve", {
+result = requests.post(f"{BASE}/reserve", json={
     "interest_rate": 0.05,
     "qxs": [0.001] * 111,
     "age": 30,
     "term": 20,
     "sum_assured": 100000,
     "method": "net_premium"
-})
+}).json()
 print(result["reserve"])
 ```
 
