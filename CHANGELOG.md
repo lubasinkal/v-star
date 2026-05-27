@@ -17,6 +17,13 @@ For future plans, see [ROADMAP.md](./ROADMAP.md).
 - Knowledge graph with `graphify` for codebase navigation
 - `GEMINI.md` with graphify usage instructions
 - `AGENTS.md` with development guide for AI coding agents
+- `CensusSource` interface with 3 implementations (`SliceCensusSource`, `FileCensusSource`, `ReaderCensusSource`)
+- `pkg/profit` — profit testing / cashflow projection with profit signature, PV of profits, profit margin, IRR, payback year
+
+### Changed
+- Reader coverage: 51% → 75% (StreamCensus, StreamCensusFromReader, StreamCSVRaw, parallel paths)
+- Annuities coverage: 78% → 94% (DeferredTerm, ApproxWholeLifeImmediate)
+- Server coverage: 68% → 82% (all 9 annuity computations, 4 reserve methods, validation errors)
 
 ### Changed
 - Updated README code examples to be self-contained and runnable

@@ -377,7 +377,7 @@ for Python, R, JS, and cURL examples.
 
 ## What's Coming Next?
 
-- **v0.8.0** — Reserve methods interface, in-memory census source, profit testing, deployment docs
+- **v0.8.0** — Reserve methods, CensusSource interface, profit testing, Dockerfile, API freeze
 - **v1.0.0** — Stable API, 90%+ test coverage, 
 
 Full roadmap: [ROADMAP.md](./ROADMAP.md)

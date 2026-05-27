@@ -6,7 +6,7 @@
 ## v0.8.0 — CLI & API Polish (Early June 2026)
 - Reserve methods interface (gross/net premium, prospective, retrospective)
 - In-memory census source (CensusSource interface)
-- Profit testing / cashflow projection basics
+- Profit testing / cashflow projection basics (pkg/profit)
 - Lock public API surface (no breaking changes after this)
 - Comprehensive error handling + validation
 - Deployment examples (Dockerfile for `serve`, Fly.io / Railway one-click)
