@@ -26,10 +26,10 @@ type CSVOptions struct {
 	Delimiter    byte
 }
 
-// ParseStats tracks CSV parsing statistics.
-type ParseStats struct {
-	RowsRead    int
-	RowsSkipped int
+// parseStats tracks CSV parsing statistics.
+type parseStats struct {
+	rowsRead    int
+	rowsSkipped int
 }
 
 // csvJob represents a byte-range chunk to process in parallel.
