@@ -289,28 +289,24 @@ All endpoints return JSON. The server includes CORS (cross-origin), request logg
 
 ```bash
 # Present value
-curl -X POST http://localhost:8080/value \
+curl -s -X POST http://localhost:8080/value \
   -H "Content-Type: application/json" \
   -d '{"interest_rate":0.05,"records":[{"sum_assured":100000,"term":20}]}'
 
 # Monte Carlo
-curl -X POST http://localhost:8080/montecarlo \
+curl -s -X POST http://localhost:8080/simulate \
   -H "Content-Type: application/json" \
-  -d '{"num_paths":100000,"steps":10,"initial_rate":0.05,"drift":0.02,"volatility":0.15,"include_paths":true}'
+  -d '{"num_paths":10000,"steps":10,"initial_rate":0.05,"drift":0.02,"volatility":0.15}'
 
-# Rate conversion
-curl -X POST http://localhost:8080/convert-rate \
+# Annuity
+curl -s -X POST http://localhost:8080/annuity \
   -H "Content-Type: application/json" \
-  -d '{"from_rate":0.05,"from_type":"effective","compounding":12}'
+  -d '{"interest_rate":0.05,"qxs":[0.001],"age":30,"amount":1000,"computation":"whole_life_immediate"}'
 
-# Export CSV
-curl -X POST http://localhost:8080/export/csv \
+# Reserve
+curl -s -X POST http://localhost:8080/reserve \
   -H "Content-Type: application/json" \
-  -d '{"interest_rate":0.05,"records":[{"sum_assured":100000,"term":20}]}'
-
-# Upload CSV file
-curl -X POST http://localhost:8080/upload/csv \
-  -F "file=@policies.csv" -F "rate=0.05"
+  -d '{"interest_rate":0.05,"qxs":[0.001],"age":30,"term":20,"sum_assured":100000,"method":"net_premium"}'
 ```
 
 ### Python
@@ -326,30 +322,18 @@ resp = requests.post("http://localhost:8080/value", json={
 print(resp.json())
 
 # Monte Carlo
-resp = requests.post("http://localhost:8080/montecarlo", json={
+resp = requests.post("http://localhost:8080/simulate", json={
     "num_paths": 100000, "steps": 10,
     "initial_rate": 0.05, "drift": 0.02, "volatility": 0.15
 })
 print(resp.json())  # {"var_95": ..., "cte_95": ...}
 
-# Upload CSV
-resp = requests.post("http://localhost:8080/upload/csv",
-    files={"file": open("policies.csv", "rb")},
-    data={"rate": "0.05"})
-print(resp.text)
-```
-
-Or use `examples/python_bridge/vstar.py` — a zero-dependency HTTP client:
-
-```python
-from vstar import VStar
-engine = VStar("http://localhost:8080")
-result = engine.present_value([{"sum_assured": 100000, "term": 20}])
 ```
 
 **v-star's HTTP API works from any language** — Python, R, JavaScript,
-Excel VBA, Julia, Rust, etc. See [examples/python_bridge/](./examples/python_bridge/)
-for Python, R, JS, and cURL examples.
+TypeScript, Excel VBA, Julia, Rust, etc. See
+[examples/api-clients/](./examples/api-clients/) for full examples in
+Python, R, JavaScript, TypeScript, and cURL.
 
 ---
 
