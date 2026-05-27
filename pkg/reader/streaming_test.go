@@ -1,6 +1,7 @@
 package reader
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -150,5 +151,77 @@ func TestStreamCensusChunked_AllWorkers(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("StreamCensusChunked: %v", err)
+	}
+}
+
+func TestStreamCensusChunked_Parallel(t *testing.T) {
+	// Trigger parallel path by setting small chunkSize so dataSize >= chunkSize*1000
+	// and Workers > 1.
+	var lines []string
+	lines = append(lines, "age,sex,policy_type,sum_assured,term")
+	for range 500 {
+		lines = append(lines, "30,M,term,100000,20")
+	}
+	path := writeTestCSV(t, lines)
+
+	opts := StreamOptions{
+		CSVOptions: CSVOptions{Header: true},
+		ChunkSize:  2,
+		Workers:    4,
+	}
+	count, err := StreamCensusChunked(path, opts, func(chunk []CensusRecord) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("StreamCensusChunked: %v", err)
+	}
+	if count != 500 {
+		t.Errorf("count = %d, want 500", count)
+	}
+}
+
+func TestStreamCensusChunked_ParallelLimit(t *testing.T) {
+	// Parallel path — limit applies to processFn calls.
+	// Note: the returned count is the total parsed, not the limited count.
+	var lines []string
+	lines = append(lines, "age,sex,policy_type,sum_assured,term")
+	for i := range 50 {
+		lines = append(lines, fmt.Sprintf("%d,%s,%s,%d,%d", i%50+20, "M", "term", 100000+i, i%20+1))
+	}
+	path := writeTestCSV(t, lines)
+
+	var processed int
+	opts := StreamOptions{
+		CSVOptions: CSVOptions{Header: true, Limit: 3},
+		ChunkSize:  2,
+		Workers:    4,
+	}
+	count, err := StreamCensusChunked(path, opts, func(chunk []CensusRecord) error {
+		processed += len(chunk)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("StreamCensusChunked: %v", err)
+	}
+	if processed != 3 {
+		t.Errorf("processed = %d, want 3", processed)
+	}
+	_ = count // total parsed, may differ from limited count
+}
+
+func TestStreamCensusChunked_NoDataAfterHeader(t *testing.T) {
+	path := writeTestCSV(t, []string{"age,sex,policy_type,sum_assured,term"})
+	opts := StreamOptions{
+		CSVOptions: CSVOptions{Header: true},
+		Workers:    2,
+	}
+	count, err := StreamCensusChunked(path, opts, func(chunk []CensusRecord) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("StreamCensusChunked: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("count = %d, want 0", count)
 	}
 }

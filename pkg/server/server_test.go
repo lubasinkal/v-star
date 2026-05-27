@@ -61,6 +61,50 @@ func TestPVHandler_EmptyBody(t *testing.T) {
 	}
 }
 
+func TestPVHandler_Parallel(t *testing.T) {
+	body := `{"interest_rate":0.05,"rate_j":0.02,"parallel":true,"records":[{"sum_assured":100000,"term":20},{"sum_assured":50000,"term":10}]}`
+	req := httptest.NewRequest("POST", "/value", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).pvHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp PVResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.RecordCount != 2 {
+		t.Errorf("RecordCount = %d, want 2", resp.RecordCount)
+	}
+	if resp.TotalPV == 0 {
+		t.Error("TotalPV should be non-zero")
+	}
+}
+
+func TestPVHandler_VStarDiscount(t *testing.T) {
+	// Using rate_j triggers PresentValueStar path
+	body := `{"interest_rate":0.05,"rate_j":0.02,"records":[{"sum_assured":100000,"term":20}]}`
+	req := httptest.NewRequest("POST", "/value", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).pvHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp PVResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.TotalPV == 0 {
+		t.Error("TotalPV should be non-zero")
+	}
+}
+
 func TestPVHandler_WrongMethod(t *testing.T) {
 	req := httptest.NewRequest("GET", "/value", nil)
 	w := httptest.NewRecorder()
@@ -233,6 +277,174 @@ func TestAnnuityHandler_InvalidComputation(t *testing.T) {
 	}
 }
 
+func TestAnnuityHandler_WholeLifeDue(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"amount":1000,"computation":"whole_life_due"}`
+	req := httptest.NewRequest("POST", "/annuity", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).annuityHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp AnnuityResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PresentValue == 0 {
+		t.Error("PresentValue should be non-zero")
+	}
+}
+
+func TestAnnuityHandler_TermImmediate(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"term":10,"amount":1000,"computation":"term_immediate"}`
+	req := httptest.NewRequest("POST", "/annuity", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).annuityHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp AnnuityResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PresentValue == 0 {
+		t.Error("PresentValue should be non-zero")
+	}
+}
+
+func TestAnnuityHandler_TermDue(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"term":10,"amount":1000,"computation":"term_due"}`
+	req := httptest.NewRequest("POST", "/annuity", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).annuityHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp AnnuityResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PresentValue == 0 {
+		t.Error("PresentValue should be non-zero")
+	}
+}
+
+func TestAnnuityHandler_EndowmentNSP(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"term":10,"amount":100000,"computation":"endowment_nsp"}`
+	req := httptest.NewRequest("POST", "/annuity", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).annuityHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp AnnuityResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PresentValue == 0 {
+		t.Error("PresentValue should be non-zero")
+	}
+}
+
+func TestAnnuityHandler_ValidationErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"zero interest", `{"interest_rate":0,"qxs":[0.001],"age":30,"amount":1000,"computation":"term_immediate"}`},
+		{"negative interest", `{"interest_rate":-0.05,"qxs":[0.001],"age":30,"amount":1000,"computation":"term_immediate"}`},
+		{"zero amount", `{"interest_rate":0.05,"qxs":[0.001],"age":30,"amount":0,"computation":"term_immediate"}`},
+		{"negative amount", `{"interest_rate":0.05,"qxs":[0.001],"age":30,"amount":-100,"computation":"term_immediate"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/annuity", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			(&Server{}).annuityHandler(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+			}
+		})
+	}
+}
+
 func TestAnnuityHandler_EmptyQxs(t *testing.T) {
 	body := `{"interest_rate":0.05,"qxs":[],"age":30,"amount":1000,"computation":"term_immediate"}`
 	req := httptest.NewRequest("POST", "/annuity", strings.NewReader(body))
@@ -292,6 +504,136 @@ func TestReserveHandler_InvalidMethod(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestReserveHandler_GrossPremium(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"term":3,"sum_assured":100000,"expenses":500,"method":"gross_premium"}`
+	req := httptest.NewRequest("POST", "/reserve", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).reserveHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp ReserveResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Reserve == 0 {
+		t.Error("Reserve should be non-zero")
+	}
+}
+
+func TestReserveHandler_Prospective(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"term":3,"sum_assured":100000,"premium":50000,"method":"prospective"}`
+	req := httptest.NewRequest("POST", "/reserve", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).reserveHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp ReserveResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Reserve == 0 {
+		t.Error("Reserve should be non-zero")
+	}
+}
+
+func TestReserveHandler_Retrospective(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"term":3,"sum_assured":100000,"premium":50000,"method":"retrospective"}`
+	req := httptest.NewRequest("POST", "/reserve", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).reserveHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp ReserveResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Reserve == 0 {
+		t.Error("Reserve should be non-zero")
+	}
+}
+
+func TestReserveHandler_ValidationErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"zero interest", `{"interest_rate":0,"qxs":[0.001],"age":30,"term":3,"sum_assured":100000,"method":"net_premium"}`},
+		{"zero sum_assured", `{"interest_rate":0.05,"qxs":[0.001],"age":30,"term":3,"sum_assured":0,"method":"net_premium"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/reserve", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			(&Server{}).reserveHandler(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+			}
+		})
 	}
 }
 

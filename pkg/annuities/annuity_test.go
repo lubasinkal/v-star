@@ -299,6 +299,89 @@ func TestEndowmentNSP_Decomposition(t *testing.T) {
 	}
 }
 
+func TestDeferredTerm_ExactValues(t *testing.T) {
+	mort := zeroMortalityTable(120)
+	converter := rates.NewRateConverter(0.05)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	// DeferredTerm(age=30, deferment=2, term=3, amount=1000)
+	// = Px(30,2) * v^2 * TermImmediate(32, 3, 1000)
+	// With zero mortality: Px(30,2)=1, v=1/1.05
+	v := 1.0 / 1.05
+	// TermImmediate(32, 3, 1000) = 1000 * (v + v^2 + v^3)
+	termPV := 1000.0 * (v + v*v + v*v*v)
+	expected := v * v * termPV
+	got := calc.DeferredTerm(30, 2, 3, 1000)
+	if !floatEquals(got, expected) {
+		t.Errorf("DeferredTerm(30,2,3,1000) = %.6f, want %.6f", got, expected)
+	}
+}
+
+func TestDeferredTerm_LessThanNonDeferred(t *testing.T) {
+	mort := zeroMortalityTable(120)
+	converter := rates.NewRateConverter(0.05)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	deferred := calc.DeferredTerm(30, 5, 10, 1000)
+	direct := calc.TermImmediate(30, 10, 1000)
+
+	if deferred >= direct {
+		t.Errorf("DeferredTerm(30,5,10,1000) = %.6f should be < TermImmediate(30,10,1000) = %.6f", deferred, direct)
+	}
+}
+
+func TestDeferredTerm_ZeroDeferment(t *testing.T) {
+	// Deferment=0 should return 0 (guard catches deferment <= 0)
+	mort := zeroMortalityTable(120)
+	converter := rates.NewRateConverter(0.05)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	got := calc.DeferredTerm(30, 0, 10, 1000)
+	if got != 0 {
+		t.Errorf("DeferredTerm with deferment=0 = %v, want 0", got)
+	}
+}
+
+func TestDeferredTerm_DeferredBeyondMaxAge(t *testing.T) {
+	// Deferment so long that Px at deferment = 0
+	qx := []float64{0.5, 0.5, 0.5}
+	mort := mortality.NewTable("high-death", qx)
+	converter := rates.NewRateConverter(0.05)
+	calc := NewAnnuityCalculator(converter, mort)
+
+	got := calc.DeferredTerm(0, 10, 5, 1000)
+	if got != 0 {
+		t.Errorf("DeferredTerm beyond maxAge = %v, want 0", got)
+	}
+}
+
+func TestApproxWholeLifeImmediate(t *testing.T) {
+	mort := zeroMortalityTable(120)
+	v := 1.0 / 1.05
+	expected := 1000.0 * (v + v*v + v*v*v)
+	got := ApproxWholeLifeImmediate(30, 3, 1000, 0.05, mort)
+	if !floatEquals(got, expected) {
+		t.Errorf("ApproxWholeLifeImmediate(30,3,1000,0.05) = %.6f, want %.6f", got, expected)
+	}
+}
+
+func TestApproxWholeLifeImmediate_EdgeCases(t *testing.T) {
+	mort := zeroMortalityTable(120)
+
+	if got := ApproxWholeLifeImmediate(-1, 10, 1000, 0.05, mort); got != 0 {
+		t.Errorf("negative age = %v, want 0", got)
+	}
+	if got := ApproxWholeLifeImmediate(30, 0, 1000, 0.05, mort); got != 0 {
+		t.Errorf("zero term = %v, want 0", got)
+	}
+	if got := ApproxWholeLifeImmediate(30, 10, 0, 0.05, mort); got != 0 {
+		t.Errorf("zero amount = %v, want 0", got)
+	}
+	if got := ApproxWholeLifeImmediate(30, 10, 1000, -0.01, mort); got != 0 {
+		t.Errorf("negative rate = %v, want 0", got)
+	}
+}
+
 func TestLifeInsurance_EdgeCases(t *testing.T) {
 	mort := zeroMortalityTable(120)
 	converter := rates.NewRateConverter(0.05)
