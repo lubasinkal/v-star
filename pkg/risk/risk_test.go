@@ -123,35 +123,41 @@ func TestComputeReport_Empty(t *testing.T) {
 }
 
 func BenchmarkVaR(b *testing.B) {
-	losses := make([]float64, 100000)
-	for i := range losses {
-		losses[i] = float64(i)
+	base := make([]float64, 100000)
+	for i := range base {
+		base[i] = float64(i)
 	}
+	buf := make([]float64, len(base))
 	b.ResetTimer()
 	for b.Loop() {
-		VaR(losses, 0.99)
+		copy(buf, base)
+		VaR(buf, 0.99)
 	}
 }
 
 func BenchmarkCTE(b *testing.B) {
-	losses := make([]float64, 100000)
-	for i := range losses {
-		losses[i] = float64(i)
+	base := make([]float64, 100000)
+	for i := range base {
+		base[i] = float64(i)
 	}
+	buf := make([]float64, len(base))
 	b.ResetTimer()
 	for b.Loop() {
-		CTE(losses, 0.99)
+		copy(buf, base)
+		CTE(buf, 0.99)
 	}
 }
 
 func BenchmarkComputeReport(b *testing.B) {
-	losses := make([]float64, 100000)
-	for i := range losses {
-		losses[i] = float64(i)
+	base := make([]float64, 100000)
+	for i := range base {
+		base[i] = float64(i)
 	}
+	buf := make([]float64, len(base))
 	b.ResetTimer()
 	for b.Loop() {
-		ComputeReport(losses)
+		copy(buf, base)
+		ComputeReport(buf)
 	}
 }
 

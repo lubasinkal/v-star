@@ -9,27 +9,25 @@ import (
 // Returns the loss threshold that is not exceeded with the specified probability.
 // For example, VaR(0.95) returns the 95th percentile of losses (95% confidence).
 // losses should contain simulated portfolio losses (positive values represent losses).
+// The losses slice is sorted in place during computation.
 func VaR(losses []float64, confidence float64) float64 {
 	if len(losses) == 0 || confidence <= 0 || confidence >= 1 {
 		return 0
 	}
-	sorted := make([]float64, len(losses))
-	copy(sorted, losses)
-	slices.Sort(sorted)
-	return varSorted(sorted, confidence)
+	slices.Sort(losses)
+	return varSorted(losses, confidence)
 }
 
 // CTE computes Conditional Tail Expectation (Expected Shortfall).
 // Returns the average of losses exceeding the VaR threshold.
 // CTE is more informative than VaR as it captures tail severity.
+// The losses slice is sorted in place during computation.
 func CTE(losses []float64, confidence float64) float64 {
 	if len(losses) == 0 || confidence <= 0 || confidence >= 1 {
 		return 0
 	}
-	sorted := make([]float64, len(losses))
-	copy(sorted, losses)
-	slices.Sort(sorted)
-	return cteSorted(sorted, confidence)
+	slices.Sort(losses)
+	return cteSorted(losses, confidence)
 }
 
 func varSorted(sorted []float64, confidence float64) float64 {
@@ -68,6 +66,7 @@ type RiskReport struct {
 }
 
 // ComputeReport generates a full risk report from simulated losses.
+// The losses slice is sorted in place during computation.
 func ComputeReport(losses []float64) RiskReport {
 	n := float64(len(losses))
 	if n == 0 {
@@ -94,9 +93,7 @@ func ComputeReport(losses []float64) RiskReport {
 	}
 	variance /= n
 
-	sorted := make([]float64, len(losses))
-	copy(sorted, losses)
-	slices.Sort(sorted)
+	slices.Sort(losses)
 
 	stdDev := math.Sqrt(variance)
 	stdErr := stdDev / math.Sqrt(n)
@@ -109,9 +106,9 @@ func ComputeReport(losses []float64) RiskReport {
 		Confidence95Hi: mean + 1.96*stdErr,
 		Min:            min,
 		Max:            max,
-		VaR95:          varSorted(sorted, 0.95),
-		VaR99:          varSorted(sorted, 0.99),
-		CTE95:          cteSorted(sorted, 0.95),
-		CTE99:          cteSorted(sorted, 0.99),
+		VaR95:          varSorted(losses, 0.95),
+		VaR99:          varSorted(losses, 0.99),
+		CTE95:          cteSorted(losses, 0.95),
+		CTE99:          cteSorted(losses, 0.99),
 	}
 }
