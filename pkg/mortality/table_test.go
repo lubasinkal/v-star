@@ -172,69 +172,6 @@ func TestTableEx(t *testing.T) {
 	}
 }
 
-func TestParseLines(t *testing.T) {
-	data := []byte("age,qx\n0,0.001\n1,0.002\n")
-	lines := parseLines(data)
-	if len(lines) == 0 {
-		t.Error("parseLines() returned empty")
-	}
-}
-
-func TestSplitCSV(t *testing.T) {
-	fields := splitCSV([]byte("a,b,c"))
-	if len(fields) != 3 {
-		t.Errorf("splitCSV() = %d, want 3", len(fields))
-	}
-	if fields[0] != "a" || fields[1] != "b" || fields[2] != "c" {
-		t.Errorf("splitCSV() = %v", fields)
-	}
-}
-
-func TestDetectColumns(t *testing.T) {
-	cols := detectColumns([]byte("age,qx,px"))
-	if cols["age"] != 0 || cols["qx"] != 1 || cols["px"] != 2 {
-		t.Errorf("detectColumns() = %v", cols)
-	}
-}
-
-func TestParseInt(t *testing.T) {
-	tests := []struct {
-		s    string
-		want int
-	}{
-		{"0", 0},
-		{"123", 123},
-		{"-45", -45},
-		{"", 0},
-		{"007", 7},
-	}
-
-	for _, tt := range tests {
-		if got := parseInt(tt.s); got != tt.want {
-			t.Errorf("parseInt(%q) = %d, want %d", tt.s, got, tt.want)
-		}
-	}
-}
-
-func TestParseFloat(t *testing.T) {
-	tests := []struct {
-		s    string
-		want float64
-	}{
-		{"0", 0},
-		{"123.456", 123.456},
-		{"-45.5", -45.5},
-		{"", 0},
-		{".5", 0.5},
-	}
-
-	for _, tt := range tests {
-		if got := parseFloat(tt.s); math.Abs(got-tt.want) > 1e-9 {
-			t.Errorf("parseFloat(%q) = %v, want %v", tt.s, got, tt.want)
-		}
-	}
-}
-
 func TestExtractName(t *testing.T) {
 	tests := []struct {
 		filepath string

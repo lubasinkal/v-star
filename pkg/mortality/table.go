@@ -2,8 +2,10 @@ package mortality
 
 import (
 	"errors"
-	"io"
-	"os"
+	"strconv"
+	"strings"
+
+	"github.com/lubasinkal/v-star/pkg/reader"
 )
 
 // MortalityTable defines the interface for mortality data access.
@@ -117,345 +119,140 @@ func (t *Table) Lx(age int) float64 {
 // LoadCSV loads a mortality table from a CSV file.
 // Supports columns named "qx" or "px" alongside an "age" column.
 func LoadCSV(filepath string) (*Table, error) {
-	return loadCSVToMemory(filepath)
-}
-
-func loadCSVToMemory(filepath string) (*Table, error) {
-	data, err := os.ReadFile(filepath)
+	headers, err := reader.GetHeaders(filepath, ',')
 	if err != nil {
 		return nil, err
 	}
-	lines := parseLines(data)
-	if len(lines) < 2 {
-		return nil, errors.New("mortality: table must have at least header and one data row")
-	}
-	header := lines[0]
-	colMap := detectColumns(header)
+
+	colMap := buildColMap(headers)
 	ageIdx, ageOk := colMap["age"]
 	qxIdx, qxOk := colMap["qx"]
 	pxIdx, pxOk := colMap["px"]
+
 	if !ageOk {
 		return nil, errors.New("mortality: age column required")
 	}
 	if !qxOk && !pxOk {
 		return nil, errors.New("mortality: either qx or px column required")
 	}
-	var qx []float64
+
 	if qxOk {
-		for i := 1; i < len(lines); i++ {
-			fields := splitCSV(lines[i])
-			age := parseInt(fields[ageIdx])
-			q := parseFloat(fields[qxIdx])
-			if age >= len(qx) {
-				qx = append(qx, make([]float64, age-len(qx)+1)...)
+		return loadQx(filepath, ageIdx, qxIdx)
+	}
+	return loadPx(filepath, ageIdx, pxIdx)
+}
+
+func loadQx(filepath string, ageIdx, qxIdx int) (*Table, error) {
+	var qx []float64
+	err := reader.StreamCSV(filepath, reader.CSVOptions{Header: true, Delimiter: ','}, func(fields []string) {
+		if ageIdx >= len(fields) || qxIdx >= len(fields) {
+			return
+		}
+		age, _ := strconv.Atoi(strings.TrimSpace(fields[ageIdx]))
+		q, _ := strconv.ParseFloat(strings.TrimSpace(fields[qxIdx]), 64)
+		if age >= len(qx) {
+			qx = append(qx, make([]float64, age-len(qx)+1)...)
+		}
+		qx[age] = q
+	})
+	if err != nil {
+		return nil, err
+	}
+	return NewTable(extractName(filepath), qx), nil
+}
+
+func loadPx(filepath string, ageIdx, pxIdx int) (*Table, error) {
+	pxVals := make(map[int]float64)
+	err := reader.StreamCSV(filepath, reader.CSVOptions{Header: true, Delimiter: ','}, func(fields []string) {
+		if ageIdx >= len(fields) || pxIdx >= len(fields) {
+			return
+		}
+		age, _ := strconv.Atoi(strings.TrimSpace(fields[ageIdx]))
+		p, _ := strconv.ParseFloat(strings.TrimSpace(fields[pxIdx]), 64)
+		pxVals[age] = p
+	})
+	if err != nil {
+		return nil, err
+	}
+	maxA := maxKey(pxVals)
+	qx := make([]float64, maxA+1)
+	for age, px := range pxVals {
+		if age == 0 {
+			qx[age] = 1 - px
+		} else {
+			prevPx := 1.0
+			for a := range age {
+				prevPx *= 1 - qx[a]
 			}
-			qx[age] = q
-		}
-	} else if pxOk {
-		pxVals := make(map[int]float64)
-		for i := 1; i < len(lines); i++ {
-			fields := splitCSV(lines[i])
-			age := parseInt(fields[ageIdx])
-			px := parseFloat(fields[pxIdx])
-			pxVals[age] = px
-		}
-		maxA := 0
-		for age := range pxVals {
-			if age > maxA {
-				maxA = age
-			}
-		}
-		qx = make([]float64, maxA+1)
-		for age, px := range pxVals {
-			if age == 0 {
-				qx[age] = 1 - px
-			} else {
-				prevPx := 1.0
-				for a := range age {
-					prevPx *= 1 - qx[a]
-				}
-				if prevPx > 0 {
-					qx[age-1] = 1 - px/prevPx
-				}
+			if prevPx > 0 {
+				qx[age-1] = 1 - px/prevPx
 			}
 		}
 	}
 	return NewTable(extractName(filepath), qx), nil
 }
 
+func buildColMap(headers []string) map[string]int {
+	m := make(map[string]int, len(headers))
+	for i, h := range headers {
+		m[strings.ToLower(strings.TrimSpace(h))] = i
+	}
+	return m
+}
+
 func StreamCSV(filepath string, fn func(age int, qx float64)) error {
-	file, err := os.Open(filepath)
+	headers, err := reader.GetHeaders(filepath, ',')
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return err
-	}
-	if info.Size() < 1024*1024 {
-		return streamCSVSmall(file, fn)
-	}
-	return streamCSVParallel(filepath, fn)
-}
-
-func streamCSVSmall(file *os.File, fn func(age int, qx float64)) error {
-	data, err := io.ReadAll(file)
-	if err != nil {
-		return err
-	}
-	lines := parseLines(data)
-	if len(lines) < 2 {
-		return nil
-	}
-	header := lines[0]
-	colMap := detectColumns(header)
-	ageIdx, ageOk := colMap["age"]
-	qxIdx, qxOk := colMap["qx"]
-	pxIdx, pxOk := colMap["px"]
-	if !ageOk {
-		return errors.New("mortality: age column required")
-	}
-	if !qxOk && !pxOk {
-		return errors.New("mortality: either qx or px column required")
-	}
-	var qx []float64
-	if qxOk {
-		for i := 1; i < len(lines); i++ {
-			fields := splitCSV(lines[i])
-			age := parseInt(fields[ageIdx])
-			q := parseFloat(fields[qxIdx])
-			fn(age, q)
-			if age >= len(qx) {
-				qx = append(qx, q)
-			} else {
-				qx[age] = q
-			}
-		}
-	} else {
-		pxVals := make(map[int]float64)
-		for i := 1; i < len(lines); i++ {
-			fields := splitCSV(lines[i])
-			age := parseInt(fields[ageIdx])
-			px := parseFloat(fields[pxIdx])
-			pxVals[age] = px
-		}
-		for age, px := range pxVals {
-			var q float64
-			if age == 0 {
-				q = 1 - px
-			} else {
-				if prevPx, ok := pxVals[age-1]; ok && prevPx > 0 {
-					q = 1 - px/prevPx
-				}
-			}
-			fn(age, q)
-		}
-	}
-	return nil
-}
-
-func streamCSVParallel(filepath string, fn func(age int, qx float64)) error {
-	f, err := os.Open(filepath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	fileSize := info.Size()
-	data := make([]byte, fileSize)
-	_, err = f.ReadAt(data, 0)
-	if err != nil && err != io.EOF {
-		return err
-	}
-	lines := parseLines(data)
-	if len(lines) < 2 {
-		return nil
-	}
-	header := lines[0]
-	colMap := detectColumns(header)
+	colMap := buildColMap(headers)
 	ageIdx, ageOk := colMap["age"]
 	qxIdx, qxOk := colMap["qx"]
 	pxIdx, pxOk := colMap["px"]
 	if !ageOk || (!qxOk && !pxOk) {
 		return errors.New("mortality: invalid column structure")
 	}
+
+	if qxOk {
+		return reader.StreamCSV(filepath, reader.CSVOptions{Header: true, Delimiter: ','}, func(fields []string) {
+			if ageIdx >= len(fields) || qxIdx >= len(fields) {
+				return
+			}
+			age, _ := strconv.Atoi(strings.TrimSpace(fields[ageIdx]))
+			q, _ := strconv.ParseFloat(strings.TrimSpace(fields[qxIdx]), 64)
+			fn(age, q)
+		})
+	}
+
+	// px columns: collect all values, derive qx
 	pxVals := make(map[int]float64)
-	if pxOk {
-		for i := 1; i < len(lines); i++ {
-			fields := splitCSV(lines[i])
-			age := parseInt(fields[ageIdx])
-			pxVals[age] = parseFloat(fields[pxIdx])
+	err = reader.StreamCSV(filepath, reader.CSVOptions{Header: true, Delimiter: ','}, func(fields []string) {
+		if ageIdx >= len(fields) || pxIdx >= len(fields) {
+			return
 		}
-		for age := 0; age <= maxAge(pxVals); age++ {
-			var q float64
-			if age == 0 {
-				if px, ok := pxVals[0]; ok {
-					q = 1 - px
-				}
-			} else {
-				if px, ok := pxVals[age]; ok {
-					if prevPx, ok := pxVals[age-1]; ok && prevPx > 0 {
-						q = 1 - px/prevPx
-					}
+		age, _ := strconv.Atoi(strings.TrimSpace(fields[ageIdx]))
+		p, _ := strconv.ParseFloat(strings.TrimSpace(fields[pxIdx]), 64)
+		pxVals[age] = p
+	})
+	if err != nil {
+		return err
+	}
+	for age := 0; age <= maxKey(pxVals); age++ {
+		var q float64
+		if age == 0 {
+			if px, ok := pxVals[0]; ok {
+				q = 1 - px
+			}
+		} else {
+			if px, ok := pxVals[age]; ok {
+				if prevPx, ok := pxVals[age-1]; ok && prevPx > 0 {
+					q = 1 - px/prevPx
 				}
 			}
-			fn(age, q)
 		}
-	} else {
-		for i := 1; i < len(lines); i++ {
-			fields := splitCSV(lines[i])
-			age := parseInt(fields[ageIdx])
-			q := parseFloat(fields[qxIdx])
-			fn(age, q)
-		}
+		fn(age, q)
 	}
 	return nil
-}
-
-func parseLines(data []byte) [][]byte {
-	// Skip UTF-8 BOM if present
-	if len(data) >= 3 && data[0] == 0xef && data[1] == 0xbb && data[2] == 0xbf {
-		data = data[3:]
-	}
-
-	var lines [][]byte
-	start := 0
-	for i := 0; i < len(data); i++ {
-		if data[i] == '\n' {
-			if i > start {
-				line := data[start:i]
-				// Trim trailing \r (Windows line endings)
-				if len(line) > 0 && line[len(line)-1] == '\r' {
-					line = line[:len(line)-1]
-				}
-				lines = append(lines, line)
-			}
-			start = i + 1
-		}
-	}
-	if start < len(data) {
-		line := data[start:]
-		if len(line) > 0 && line[len(line)-1] == '\r' {
-			line = line[:len(line)-1]
-		}
-		if len(line) > 0 {
-			lines = append(lines, line)
-		}
-	}
-	return lines
-}
-
-func splitCSV(line []byte) []string {
-	var fields []string
-	start := 0
-	inQuotes := false
-	for i := range line {
-		c := line[i]
-		if c == '"' {
-			inQuotes = !inQuotes
-		} else if c == ',' && !inQuotes {
-			fields = append(fields, string(line[start:i]))
-			start = i + 1
-		}
-	}
-	fields = append(fields, string(line[start:]))
-	return fields
-}
-
-func detectColumns(header []byte) map[string]int {
-	fields := splitCSV(header)
-	colMap := make(map[string]int)
-	for i, f := range fields {
-		lower := toLower(f)
-		colMap[lower] = i
-	}
-	return colMap
-}
-
-func toLower(s string) string {
-	result := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 32
-		}
-		result[i] = c
-	}
-	return string(result)
-}
-
-func parseInt(s string) int {
-	if len(s) == 0 {
-		return 0
-	}
-	n := 0
-	negative := false
-	start := 0
-	if s[0] == '-' {
-		negative = true
-		start = 1
-	}
-	for i := start; i < len(s); i++ {
-		c := s[i]
-		if c < '0' || c > '9' {
-			return 0
-		}
-		n = n*10 + int(c-'0')
-	}
-	if negative {
-		return -n
-	}
-	return n
-}
-
-func parseFloat(s string) float64 {
-	if len(s) == 0 {
-		return 0
-	}
-	val := 0.0
-	divisor := 1
-	inDecimal := false
-	hasDigit := false
-	negative := false
-	start := 0
-
-	if s[0] == '-' {
-		negative = true
-		start = 1
-	}
-
-	for i := start; i < len(s); i++ {
-		c := s[i]
-		if c == '.' {
-			if inDecimal {
-				return 0
-			}
-			inDecimal = true
-			continue
-		}
-		if c < '0' || c > '9' {
-			return 0
-		}
-		hasDigit = true
-		val = val*10 + float64(c-'0')
-		if inDecimal {
-			divisor *= 10
-		}
-	}
-	if !hasDigit {
-		return 0
-	}
-	if divisor > 1 {
-		val /= float64(divisor)
-	}
-	if negative {
-		val = -val
-	}
-	return val
 }
 
 func extractName(filepath string) string {
@@ -467,7 +264,7 @@ func extractName(filepath string) string {
 	return filepath[:len(filepath)-4]
 }
 
-func maxAge(m map[int]float64) int {
+func maxKey(m map[int]float64) int {
 	max := 0
 	for k := range m {
 		if k > max {
