@@ -149,7 +149,7 @@ func Run(policy Policy, assumptions Assumptions) Results {
 	pvProfits := 0.0
 	pvPremiums := 0.0
 
-	for t := 0; t < term; t++ {
+	for t := range term {
 		age := policy.Age + t
 		qx := mort.Qx(age)
 		p := mort.Px(age, 1) // 1-year survival
@@ -222,7 +222,7 @@ func Run(policy Policy, assumptions Assumptions) Results {
 	// Payback year (discounted)
 	paybackYear := 0
 	cumDiscounted := 0.0
-	for t := 0; t < term; t++ {
+	for t := range term {
 		cumDiscounted += profitSignature[t] * disc.Discount(t+1)
 		if cumDiscounted > 0 && paybackYear == 0 {
 			paybackYear = t + 1
@@ -265,7 +265,7 @@ func computeReserves(policy Policy, earned *rates.RateConverter, mort mortality.
 	// Prospective reserve: V_t = NSP(age+t, term-t) - netPremium * annuity(age+t, term-t)
 	reserve := make([]float64, term+1)
 	reserve[term] = 0
-	for t := 0; t < term; t++ {
+	for t := range term {
 		if t >= term {
 			break
 		}
@@ -291,7 +291,7 @@ func nspTerm(age, term int, sa float64, disc *rates.RateConverter, mort mortalit
 	}
 	nsp := 0.0
 	px := 1.0
-	for k := 0; k < term; k++ {
+	for k := range term {
 		q := mort.Qx(age + k)
 		nsp += sa * q * px * disc.Discount(k+1)
 		px *= (1 - q)
@@ -307,9 +307,9 @@ func annuityDueTerm(age, term int, amount float64, disc *rates.RateConverter, mo
 	}
 	pv := 0.0
 	px := 1.0
-	for k := 0; k < term; k++ {
+	for k := range term {
 		pv += amount * px * disc.Discount(k)
-		px *= (1 - mort.Qx(age + k))
+		px *= (1 - mort.Qx(age+k))
 	}
 	return pv
 }
@@ -324,7 +324,7 @@ func findIRR(profitSignature []float64, px []float64, guessRate float64) float64
 		pv := 0.0
 		v := 1.0 / (1.0 + rate)
 		vPow := v
-		for t := 0; t < len(profitSignature); t++ {
+		for t := range profitSignature {
 			pv += profitSignature[t] * vPow
 			vPow *= v
 		}
@@ -349,7 +349,7 @@ func findIRR(profitSignature []float64, px []float64, guessRate float64) float64
 		return high
 	}
 
-	for iter := 0; iter < maxIter; iter++ {
+	for range maxIter {
 		mid := (low + high) / 2
 		fMid := npv(mid)
 
@@ -370,7 +370,7 @@ func findIRR(profitSignature []float64, px []float64, guessRate float64) float64
 
 	// Fallback: use Newton-Raphson from guessRate
 	x := guessRate
-	for iter := 0; iter < maxIter; iter++ {
+	for range maxIter {
 		f := npv(x)
 		if math.Abs(f) < tol {
 			return x
