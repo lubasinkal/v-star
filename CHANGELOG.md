@@ -25,6 +25,13 @@ For future plans, see [ROADMAP.md](./ROADMAP.md).
 - All benchmarks migrated to `b.Loop()` (Go 1.24+)
 - Cleaned up repo: removed build artifacts, Python `__pycache__`, large test CSVs
 
+### Removed
+- Duplicated CSV parsing helpers from `mortality` package (parseLines, splitCSV, detectColumns, parseInt, parseFloat, toLower, maxAge) — now uses `reader` package
+- Local `AnnuityResult` struct from `read` command — unified to `writer.Record`
+
+### Performance
+- Risk measures (VaR/CTE/ComputeReport): 1.4–1.8× faster. Eliminated 800KB allocation per call by sorting in-place instead of copy-then-sort.
+
 ## [0.7.0] - 2026-05-01
 
 ### Added

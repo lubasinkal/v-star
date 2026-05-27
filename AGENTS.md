@@ -108,12 +108,13 @@ import (
 - Export fields that need serialization; keep internal fields lowercase
 - Example:
 ```go
-type JSONRecord struct {
-    Age          int     `json:"age"`
-    Sex          string  `json:"sex"`
-    PolicyType   string  `json:"policy_type"`
-    SumAssured   float64 `json:"sum_assured"`
-    PresentValue float64 `json:"present_value"`
+type Record struct {
+    Age          int     `json:"age" csv:"age"`
+    Sex          string  `json:"sex" csv:"sex"`
+    PolicyType   string  `json:"policy_type" csv:"policy_type"`
+    SumAssured   float64 `json:"sum_assured" csv:"sum_assured"`
+    Term         int     `json:"term" csv:"term"`
+    PresentValue float64 `json:"present_value" csv:"present_value"`
 }
 ```
 

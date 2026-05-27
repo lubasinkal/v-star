@@ -54,7 +54,7 @@ Benchmarked on an Intel i5-8250U laptop (1.6-3.4 GHz, 8 cores, NVMe SSD). Plugge
 | **Present Value** (single call, constructor) | 22.8 ns | **44M / second** |
 | **Annuity** (whole life, 90 terms) | 512 ns | **2M / second** |
 | **Monte Carlo** (100k paths, 10 steps) | 27 ms | **3.7M paths/sec** |
-| **Risk Report** (VaR + CTE, 100k losses) | 0.68 ms | **147M losses/sec** |
+| **Risk Report** (VaR + CTE, 100k losses) | 0.42 ms | **237M losses/sec** |
 | **Valuation** (10M policies, parallel) | 37 ms | **272M policies/sec** |
 
 ### CSV Comparison (10M Rows)
