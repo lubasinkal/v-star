@@ -30,9 +30,9 @@ func TestProspectiveReserve_ExactValues(t *testing.T) {
 	// ProspectiveReserve = futureBenefits - futurePremiums
 	// = sa * A_x:n (NSP) - prem * ä_x:n (annuity-due)
 	// With zero mortality, A_x:n = 0 (no deaths, no claims)
-	futureBenefits := calc.TermNSP(30, 3, 1000.0)  // 0 with qx=0
-	futurePremiums := calc.TermDue(30, 3, 300.0)    // premiums at start of year
-	expected := futureBenefits - futurePremiums      // = -futurePremiums
+	futureBenefits := calc.TermNSP(30, 3, 1000.0) // 0 with qx=0
+	futurePremiums := calc.TermDue(30, 3, 300.0)  // premiums at start of year
+	expected := futureBenefits - futurePremiums   // = -futurePremiums
 	got := ProspectiveReserve(policy, converter, mort)
 	if !floatEquals(got, expected) {
 		t.Errorf("ProspectiveReserve = %.6f, want %.6f", got, expected)
