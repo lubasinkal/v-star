@@ -314,29 +314,30 @@ func annuityDueTerm(age, term int, amount float64, disc *rates.RateConverter, mo
 	return pv
 }
 
-// findIRR computes the internal rate of return using Newton-Raphson
-// with analytical derivative, guarded by bisection.
+// findIRR computes the internal rate of return using linear interpolation
+// (regula falsi / false position method).
 //
 // The IRR is the discount rate r that makes the net present value of
 // the profit signature zero:
 //
-//	NPV(r) = Σ CF_t / (1+r)^(t+1) = 0
+//	NPV(r) = Σ_{t=0}^{n-1} CF_t / (1+r)^(t+1) = 0
 //
-// Uses the analytical derivative (Newton's method):
+// At each step, given a bracket [a, b] where NPV(a)·NPV(b) < 0, the
+// next estimate is the zero crossing of the line through (a, NPV(a))
+// and (b, NPV(b)):
 //
-//	NPV'(r) = -Σ CF_t * (t+1) / (1+r)^(t+2)
+//	r = a - NPV(a) · (b - a) / (NPV(b) - NPV(a))
 //
-// Returns -1 when no finite IRR exists (all cash flows same sign,
-// or NPV does not cross zero).
+// Returns -1 when no finite IRR exists (all cash flows same sign
+// or bracket cannot be found).
 func findIRR(profitSignature []float64, px []float64, guessRate float64) float64 {
 	const (
 		maxIter = 100
 		tol     = 1e-10
-		maxRate = 1e6 // 100,000,000% — effectively infinite
+		maxRate = 1e6
 	)
 
-	// Find first sign change to determine if IRR is possible.
-	// If all cash flows have the same sign, no finite IRR exists.
+	// Determine if sign change exists. No sign change → no finite IRR.
 	hasPositive := false
 	hasNegative := false
 	for _, cf := range profitSignature {
@@ -348,84 +349,105 @@ func findIRR(profitSignature []float64, px []float64, guessRate float64) float64
 		}
 	}
 	if !hasPositive || !hasNegative {
-		return -1 // No sign change — no finite IRR
+		return -1
 	}
 
-	// Compute NPV and its analytical derivative at a given rate.
-	fn := func(rate float64) (f, fp float64) {
-		v := 1.0 / (1.0 + rate) // v = 1/(1+r)
-		vPow := v               // v^(t+1) for t=0
-		for t, cf := range profitSignature {
-			f += cf * vPow
-			fp -= cf * float64(t+1) * vPow / (1.0 + rate)
+	// NPV at a given rate.
+	npv := func(rate float64) float64 {
+		pv := 0.0
+		v := 1.0 / (1.0 + rate)
+		vPow := v
+		for _, cf := range profitSignature {
+			pv += cf * vPow
 			vPow *= v
 		}
-		return f, fp
+		return pv
 	}
 
-	// Find a bracket [low, high] where NPV changes sign.
-	// Start from the guess rate and expand outward exponentially.
+	// Find bracket [low, high] where NPV changes sign.
+	// Start from the guess rate and expand exponentially.
 	low := 0.0
 	high := guessRate
 	if high <= 0 {
-		high = 0.05 // default 5%
+		high = 0.05
 	}
 
-	fLow, _ := fn(low)
-	fHigh, _ := fn(high)
+	fLow := npv(low)
+	fHigh := npv(high)
 
-	// Guard: if our initial bracket straddles zero, we're done bracketing.
-	// Otherwise expand high until sign changes or we hit maxRate.
+	// Expand high until NPV changes sign or we hit maxRate.
 	if fLow*fHigh > 0 {
-		// fLow and fHigh have the same sign — expand high.
-		// fLow > 0 by construction (hasPositive && hasNegative, and
-		// sum(CF_t) > 0 means NPV(0) > 0).
-		for math.Abs(fHigh) > tol && high < maxRate && fLow*fHigh > 0 {
+		for math.Abs(fHigh) > math.Abs(fLow) && high < maxRate && fLow*fHigh > 0 {
 			high *= 2
-			fHigh, _ = fn(high)
+			fHigh = npv(high)
+		}
+		// If high-side didn't work, try expanding low-side as well
+		// (for cases where the root is between a negative and a positive).
+		// Actually with fLow > 0 and fHigh still > 0, expand more.
+		for high < maxRate && fLow*fHigh > 0 {
+			high *= 2
+			fHigh = npv(high)
 		}
 		if high >= maxRate || fLow*fHigh > 0 {
-			return -1 // Could not find bracket
+			return -1
 		}
 	}
 
-	// Newton-Raphson with bisection guarding.
-	// At each step, Newton proposes x_new. If it leaves the bracket
-	// or overshoots, we bisect instead.
-	x := (low + high) / 2
+	// Illinois algorithm (modified regula falsi).
+	// When an endpoint stagnates (unchanged for two consecutive steps),
+	// halve its function value in the interpolation to break the stall
+	// and guarantee superlinear convergence.
+	lowStale := false
+	highStale := false
+
 	for range maxIter {
-		f, fp := fn(x)
+		// Apply Illinois modification: halve the function value at
+		// the stagnant endpoint to pull the interpolant toward it.
+		fLowEff := fLow
+		fHighEff := fHigh
+		if lowStale {
+			fLowEff /= 2
+		}
+		if highStale {
+			fHighEff /= 2
+		}
+
+		// Linear interpolation: where does the line cross zero?
+		denom := fHighEff - fLowEff
+		if math.Abs(denom) < 1e-16 {
+			break
+		}
+		r := low - fLowEff*(high-low)/denom
+
+		// Clamp to bracket interior (avoid boundary creep).
+		margin := (high - low) * 0.001
+		if r <= low+margin || r >= high-margin {
+			r = (low + high) / 2
+		}
+
+		f := npv(r)
 		if math.Abs(f) < tol {
-			return x
-		}
-		if math.Abs(fp) < 1e-16 {
-			break // Derivative too small — can't Newton
+			return r
 		}
 
-		xNew := x - f/fp
-
-		// Guard: Newton step must stay inside bracket; if not, bisect.
-		if xNew <= low || xNew >= high {
-			xNew = (low + high) / 2
-		}
-
-		fNew, _ := fn(xNew)
-
-		// Update bracket: one side keeps the sign, one side has the root.
-		if fNew*fLow > 0 {
-			low = xNew
-			fLow = fNew
+		// Shrink bracket. Track which endpoint moved to detect
+		// stagnation for the next iteration.
+		if f*fLow > 0 {
+			low = r
+			fLow = f
+			lowStale = true
+			highStale = false
 		} else {
-			high = xNew
-			fHigh = fNew
+			high = r
+			fHigh = f
+			highStale = true
+			lowStale = false
 		}
-
-		x = xNew
 
 		if high-low < tol {
 			return (low + high) / 2
 		}
 	}
 
-	return -1 // Not converged
+	return -1
 }
