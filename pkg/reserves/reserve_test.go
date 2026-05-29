@@ -181,8 +181,16 @@ func TestRetrospectiveReserve_WithMortality(t *testing.T) {
 }
 
 func TestRetrospectiveReserve_MatchesProspective(t *testing.T) {
-	// With the net premium, retrospective and prospective should match
-	// at every duration. Verify at issue, mid-term, and end of term.
+	// Under the equivalence principle (premium = net premium), the
+	// prospective and retrospective methods give the same reserve at
+	// the same valuation date.
+	//
+	// This tests the identity: V_t(pros) = V_t(retro) for t = 5.
+	//
+	// Note: ProspectiveReserve({age, term}) returns V_0 (at issue),
+	// while RetrospectiveReserve({age, term}) returns V_term (at end
+	// of term). These are at DIFFERENT time points. To compare at the
+	// same t, you must offset age+term accordingly.
 	qx := make([]float64, 121)
 	for i := 40; i <= 120; i++ {
 		qx[i] = 0.01
@@ -200,27 +208,33 @@ func TestRetrospectiveReserve_MatchesProspective(t *testing.T) {
 	due := calc.TermDue(age, term, 1.0)
 	netPrem := nsp / due
 
-	// Reserve at issue (t=0): should be 0 for both
-	policy := PolicySpec{Age: age, Term: term, SumAssured: sa, Premium: netPrem}
-	vPros := ProspectiveReserve(policy, converter, mort)
-	vRetro := RetrospectiveReserve(policy, converter, mort)
-	if !floatEquals(vPros, vRetro) {
-		t.Errorf("At issue: Prospective = %.4f, Retrospective = %.4f, want equal near 0", vPros, vRetro)
-	}
-
-	// Reserve mid-term (t=5):
-	//   Retrospective accumulates from issue to t=5
-	//   Prospective values remaining term (age+5, term-5) using original net premium
-	policyMid := PolicySpec{Age: age, Term: 5, SumAssured: sa, Premium: netPrem}
-	retro5 := RetrospectiveReserve(policyMid, converter, mort)
-	pros5 := ProspectiveReserve(PolicySpec{Age: age + 5, Term: term - 5, SumAssured: sa, Premium: netPrem}, converter, mort)
+	// --- Mid-term (t=5): same time point, should match ---
+	//   Retrospective: accumulate issue→t=5: {age=35, term=5}
+	//   Prospective: value remaining t=5→term: {age=40, term=5}
+	retro5 := RetrospectiveReserve(
+		PolicySpec{Age: age, Term: 5, SumAssured: sa, Premium: netPrem}, converter, mort)
+	pros5 := ProspectiveReserve(
+		PolicySpec{Age: age + 5, Term: term - 5, SumAssured: sa, Premium: netPrem}, converter, mort)
 	if !floatEquals(pros5, retro5) {
-		t.Errorf("At t=5: Prospective(age+5,term-5) = %.4f, Retrospective(issue-to-5) = %.4f, want equal", pros5, retro5)
+		t.Errorf("At t=5: Prospective(age+5) = %.4f, Retrospective(term=5) = %.4f, want equal", pros5, retro5)
 	}
 
-	// Reserve at end of term: should be 0 for term insurance (no maturity benefit)
-	if !floatEquals(vPros, 0) || !floatEquals(vRetro, 0) {
-		t.Logf("At issue: V_pros=%.4f V_retro=%.4f (should be ~0 with net premium)", vPros, vRetro)
+	// --- At issue (t=0): only Prospective gives V_0 ---
+	// ProspectiveReserve({age, term}) = V_0. With net premium, V_0 = 0.
+	// RetrospectiveReserve({age, term}) = V_term (different time point!).
+	v0 := ProspectiveReserve(
+		PolicySpec{Age: age, Term: term, SumAssured: sa, Premium: netPrem}, converter, mort)
+	if !floatEquals(v0, 0) {
+		t.Errorf("V_0(pros) with net premium = %.4f, want 0", v0)
+	}
+
+	// --- Terminal (t=term): only Retrospective gives V_term ---
+	// With net premium over the full term, accumulated premiums = accumulated
+	// claims, so V_term = 0. Prospective at t=term would need term=0 (returns 0).
+	vTerm := RetrospectiveReserve(
+		PolicySpec{Age: age, Term: term, SumAssured: sa, Premium: netPrem}, converter, mort)
+	if !floatEquals(vTerm, 0) {
+		t.Errorf("V_term(retro) with net premium = %.4f, want 0", vTerm)
 	}
 }
 
