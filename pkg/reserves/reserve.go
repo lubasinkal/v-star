@@ -85,10 +85,14 @@ func ProspectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort m
 	return futureBenefits - futurePremiums
 }
 
-// RetrospectiveReserve calculates the reserve as accumulated premiums minus past liabilities.
+// RetrospectiveReserve calculates the reserve using the retrospective (Fackler) method.
 //
-// Uses the term insurance NSP (death benefit weighted by mortality probability)
-// for the liability term instead of an annuity.
+// The reserve is built year by year using the recursive formula:
+//
+//	V_t = [(V_{t-1} + P) * (1+i) - SA * qx] / px
+//
+// Each year: premiums collected, interest earned, death claims paid,
+// then the remaining assets are spread across survivors.
 func RetrospectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort mortality.MortalityTable) float64 {
 	age := policy.Age
 	term := policy.Term
@@ -99,21 +103,20 @@ func RetrospectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort
 		return 0
 	}
 
-	v1 := discount.Discount(1)
+	v1 := discount.Discount(1) // v = 1/(1+i)
+	accFactor := 1 / v1        // (1+i)
 
-	accumulated := 0.0
+	V := 0.0
 	currentAge := age
 	for y := 1; y <= term; y++ {
+		qx := mort.Qx(currentAge)
 		px := mort.Px(currentAge, 1)
 		if px <= 0 {
 			break
 		}
-		accumulated = (accumulated + prem) * v1 / px
+		// V_t = [(V_{t-1} + P) * (1+i) - SA * qx] / px
+		V = ((V+prem)*accFactor - sa*qx) / px
 		currentAge++
 	}
-
-	calc := annuities.NewAnnuityCalculator(discount, mort)
-	futureLiability := calc.TermNSP(age, term, sa)
-
-	return accumulated - futureLiability
+	return V
 }

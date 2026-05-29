@@ -136,25 +136,91 @@ func TestGrossPremiumReserve_GenericPath(t *testing.T) {
 func TestRetrospectiveReserve_ExactValues(t *testing.T) {
 	mort := zeroMortalityTable(120)
 	converter := rates.NewRateConverter(0.05)
-	calc := annuities.NewAnnuityCalculator(converter, mort)
 
 	policy := PolicySpec{Age: 30, Term: 1, SumAssured: 1000, Premium: 300}
 
-	// RetrospectiveReserve for term=1, zero mortality:
-	// accumulated = (0 + prem) * v / Px(30,1) = prem * v / 1 = prem * v
-	// futureLiability = sa * A^1_{30:1} = sa * qx * v = 0 (qx=0)
-	// reserve = prem*v - 0 = prem*v
-	v := 1.0 / 1.05
-	expected := 300.0 * v
+	// RetrospectiveReserve for term=1, zero mortality, i=5%:
+	// V_1 = [(0 + 300) * (1+0.05) - 1000 * 0] / 1 = 315.00
+	expected := 300.0 * 1.05
 	got := RetrospectiveReserve(policy, converter, mort)
 	if !floatEquals(got, expected) {
 		t.Errorf("RetrospectiveReserve = %.6f, want %.6f", got, expected)
 	}
-	// With zero mortality, term insurance has no claims, so retrospective
-	// reserve is positive (accumulated premiums minus nothing owed)
-	nsp := calc.TermNSP(30, 1, 1000.0)
-	if !floatEquals(nsp, 0) {
-		t.Errorf("TermNSP with zero mortality = %.6f, want 0", nsp)
+}
+
+func TestRetrospectiveReserve_WithMortality(t *testing.T) {
+	// Uniform 1% mortality, i=5%, term=2, P=300, SA=1000
+	qx := make([]float64, 121)
+	for i := range qx {
+		qx[i] = 0.01
+	}
+	mort := mortality.NewTable("uniform-1pct", qx)
+	converter := rates.NewRateConverter(0.05)
+
+	policy := PolicySpec{Age: 30, Term: 2, SumAssured: 1000, Premium: 300}
+
+	// V_1 = [(0 + 300) * 1.05 - 1000 * 0.01] / 0.99
+	//     = (315 - 10) / 0.99 = 305 / 0.99 = 308.0808
+	// V_2 = [(308.0808 + 300) * 1.05 - 1000 * 0.01] / 0.99
+	//     = (608.0808 * 1.05 - 10) / 0.99
+	//     = (638.4848 - 10) / 0.99 = 628.4848 / 0.99 = 634.8329
+	expectedY1 := (300.0*1.05 - 1000.0*0.01) / 0.99
+	expectedY2 := ((expectedY1+300.0)*1.05 - 1000.0*0.01) / 0.99
+
+	got := RetrospectiveReserve(policy, converter, mort)
+	if !floatEquals(got, expectedY2) {
+		t.Errorf("RetrospectiveReserve(term=2) = %.6f, want %.6f", got, expectedY2)
+	}
+
+	// Also verify the reserve after 1 year by computing from first principles
+	policy1 := PolicySpec{Age: 30, Term: 1, SumAssured: 1000, Premium: 300}
+	got1 := RetrospectiveReserve(policy1, converter, mort)
+	if !floatEquals(got1, expectedY1) {
+		t.Errorf("RetrospectiveReserve(term=1) = %.6f, want %.6f", got1, expectedY1)
+	}
+}
+
+func TestRetrospectiveReserve_MatchesProspective(t *testing.T) {
+	// With the net premium, retrospective and prospective should match
+	// at every duration. Verify at issue, mid-term, and end of term.
+	qx := make([]float64, 121)
+	for i := 40; i <= 120; i++ {
+		qx[i] = 0.01
+	}
+	mort := mortality.NewTable("age40-plus", qx)
+	converter := rates.NewRateConverter(0.05)
+	calc := annuities.NewAnnuityCalculator(converter, mort)
+
+	sa := 100000.0
+	term := 10
+	age := 35
+
+	// Net premium from equivalence principle: P = SA * A_x:n / ä_x:n
+	nsp := calc.TermNSP(age, term, sa)
+	due := calc.TermDue(age, term, 1.0)
+	netPrem := nsp / due
+
+	// Reserve at issue (t=0): should be 0 for both
+	policy := PolicySpec{Age: age, Term: term, SumAssured: sa, Premium: netPrem}
+	vPros := ProspectiveReserve(policy, converter, mort)
+	vRetro := RetrospectiveReserve(policy, converter, mort)
+	if !floatEquals(vPros, vRetro) {
+		t.Errorf("At issue: Prospective = %.4f, Retrospective = %.4f, want equal near 0", vPros, vRetro)
+	}
+
+	// Reserve mid-term (t=5):
+	//   Retrospective accumulates from issue to t=5
+	//   Prospective values remaining term (age+5, term-5) using original net premium
+	policyMid := PolicySpec{Age: age, Term: 5, SumAssured: sa, Premium: netPrem}
+	retro5 := RetrospectiveReserve(policyMid, converter, mort)
+	pros5 := ProspectiveReserve(PolicySpec{Age: age + 5, Term: term - 5, SumAssured: sa, Premium: netPrem}, converter, mort)
+	if !floatEquals(pros5, retro5) {
+		t.Errorf("At t=5: Prospective(age+5,term-5) = %.4f, Retrospective(issue-to-5) = %.4f, want equal", pros5, retro5)
+	}
+
+	// Reserve at end of term: should be 0 for term insurance (no maturity benefit)
+	if !floatEquals(vPros, 0) || !floatEquals(vRetro, 0) {
+		t.Logf("At issue: V_pros=%.4f V_retro=%.4f (should be ~0 with net premium)", vPros, vRetro)
 	}
 }
 
