@@ -28,25 +28,44 @@ func TestProspectiveReserve_ExactValues(t *testing.T) {
 	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 300}
 
 	// ProspectiveReserve = futureBenefits - futurePremiums
-	// = sa * ax(30,3) - prem * ax(30,3)
-	// = (sa - prem) * ax(30,3)
-	ax := calc.TermImmediate(30, 3, 1.0)
-	expected := (1000.0 - 300.0) * ax
+	// = sa * A_x:n (NSP) - prem * ä_x:n (annuity-due)
+	// With zero mortality, A_x:n = 0 (no deaths, no claims)
+	futureBenefits := calc.TermNSP(30, 3, 1000.0)  // 0 with qx=0
+	futurePremiums := calc.TermDue(30, 3, 300.0)    // premiums at start of year
+	expected := futureBenefits - futurePremiums      // = -futurePremiums
 	got := ProspectiveReserve(policy, converter, mort)
 	if !floatEquals(got, expected) {
 		t.Errorf("ProspectiveReserve = %.6f, want %.6f", got, expected)
 	}
+	// With zero mortality, term insurance has no claims, so prospective
+	// reserve is negative (premiums collected with no offsetting benefits)
+	if got >= 0 {
+		t.Errorf("ProspectiveReserve = %.6f, expected negative (zero mortality, no claims)", got)
+	}
 }
 
-func TestProspectiveReserve_ZeroDifference(t *testing.T) {
-	mort := zeroMortalityTable(120)
+func TestProspectiveReserve_NetPremiumEquivalence(t *testing.T) {
+	// Under the equivalence principle, when premium = net premium,
+	// the reserve at issue (t=0) should be 0.
+	// netPremium = SA * A_x:n / ä_x:n
+	// Use non-zero mortality so A_x:n > 0
+	qx := make([]float64, 121)
+	for i := 50; i <= 120; i++ {
+		qx[i] = 0.02 // 2% mortality from age 50
+	}
+	mort := mortality.NewTable("nonzero-mort", qx)
 	converter := rates.NewRateConverter(0.05)
+	calc := annuities.NewAnnuityCalculator(converter, mort)
 
-	// When sum assured equals premium, reserve is 0
-	policy := PolicySpec{Age: 30, Term: 10, SumAssured: 5000, Premium: 5000}
+	sa := 100000.0
+	nsp := calc.TermNSP(30, 10, sa)
+	due := calc.TermDue(30, 10, 1.0)
+	netPrem := nsp / due
+
+	policy := PolicySpec{Age: 30, Term: 10, SumAssured: sa, Premium: netPrem}
 	got := ProspectiveReserve(policy, converter, mort)
 	if !floatEquals(got, 0) {
-		t.Errorf("ProspectiveReserve with SA=Prem = %.6f, want 0", got)
+		t.Errorf("ProspectiveReserve at issue with net premium = %.6f, want 0", got)
 	}
 }
 
@@ -73,8 +92,10 @@ func TestProspectiveReserve_GenericPath(t *testing.T) {
 	policy := PolicySpec{Age: 30, Term: 3, SumAssured: 1000, Premium: 300}
 
 	got := ProspectiveReserve(policy, discount, mort)
-	if got <= 0 {
-		t.Errorf("ProspectiveReserve = %v, want > 0", got)
+	// With zero mortality there are no death claims, so the reserve is
+	// negative (premiums collected exceed expected benefits of 0).
+	if got >= 0 {
+		t.Errorf("ProspectiveReserve = %v, want < 0 (zero mortality, no claims)", got)
 	}
 }
 
@@ -115,18 +136,25 @@ func TestGrossPremiumReserve_GenericPath(t *testing.T) {
 func TestRetrospectiveReserve_ExactValues(t *testing.T) {
 	mort := zeroMortalityTable(120)
 	converter := rates.NewRateConverter(0.05)
+	calc := annuities.NewAnnuityCalculator(converter, mort)
 
 	policy := PolicySpec{Age: 30, Term: 1, SumAssured: 1000, Premium: 300}
 
-	// RetrospectiveReserve for term=1:
+	// RetrospectiveReserve for term=1, zero mortality:
 	// accumulated = (0 + prem) * v / Px(30,1) = prem * v / 1 = prem * v
-	// futureLiability = sa * ax(30,1) = sa * Px(30,1) * v = sa * v
-	// reserve = prem*v - sa*v = (prem - sa) * v
+	// futureLiability = sa * A^1_{30:1} = sa * qx * v = 0 (qx=0)
+	// reserve = prem*v - 0 = prem*v
 	v := 1.0 / 1.05
-	expected := (300.0 - 1000.0) * v
+	expected := 300.0 * v
 	got := RetrospectiveReserve(policy, converter, mort)
 	if !floatEquals(got, expected) {
 		t.Errorf("RetrospectiveReserve = %.6f, want %.6f", got, expected)
+	}
+	// With zero mortality, term insurance has no claims, so retrospective
+	// reserve is positive (accumulated premiums minus nothing owed)
+	nsp := calc.TermNSP(30, 1, 1000.0)
+	if !floatEquals(nsp, 0) {
+		t.Errorf("TermNSP with zero mortality = %.6f, want 0", nsp)
 	}
 }
 

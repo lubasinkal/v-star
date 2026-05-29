@@ -64,6 +64,9 @@ func GrossPremiumReserve(policy PolicySpec, expenses float64, discount rates.Dis
 }
 
 // ProspectiveReserve calculates the reserve as future benefits minus future premiums.
+//
+// Uses the term insurance NSP (death benefit weighted by mortality probability)
+// for benefits and a term annuity-due (payments at start of year) for premiums.
 func ProspectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort mortality.MortalityTable) float64 {
 	age := policy.Age
 	term := policy.Term
@@ -74,15 +77,18 @@ func ProspectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort m
 		return 0
 	}
 
-	annuityCalc := annuities.NewAnnuityCalculator(discount, mort)
+	calc := annuities.NewAnnuityCalculator(discount, mort)
 
-	futureBenefits := annuityCalc.TermImmediate(age, term, sa)
-	futurePremiums := annuityCalc.TermImmediate(age, term, prem)
+	futureBenefits := calc.TermNSP(age, term, sa)
+	futurePremiums := calc.TermDue(age, term, prem)
 
 	return futureBenefits - futurePremiums
 }
 
 // RetrospectiveReserve calculates the reserve as accumulated premiums minus past liabilities.
+//
+// Uses the term insurance NSP (death benefit weighted by mortality probability)
+// for the liability term instead of an annuity.
 func RetrospectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort mortality.MortalityTable) float64 {
 	age := policy.Age
 	term := policy.Term
@@ -106,8 +112,8 @@ func RetrospectiveReserve(policy PolicySpec, discount rates.DiscountFactor, mort
 		currentAge++
 	}
 
-	annuityCalc := annuities.NewAnnuityCalculator(discount, mort)
-	futureLiability := annuityCalc.TermImmediate(age, term, sa)
+	calc := annuities.NewAnnuityCalculator(discount, mort)
+	futureLiability := calc.TermNSP(age, term, sa)
 
 	return accumulated - futureLiability
 }
