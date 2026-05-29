@@ -10,6 +10,7 @@ import (
 	"github.com/lubasinkal/v-star/pkg/annuities"
 	"github.com/lubasinkal/v-star/pkg/concurrency"
 	"github.com/lubasinkal/v-star/pkg/mortality"
+	"github.com/lubasinkal/v-star/pkg/profit"
 	"github.com/lubasinkal/v-star/pkg/rates"
 	"github.com/lubasinkal/v-star/pkg/reserves"
 	"github.com/lubasinkal/v-star/pkg/risk"
@@ -105,6 +106,33 @@ var validComputations = map[string]bool{
 	"whole_life_nsp":       true,
 	"term_nsp":             true,
 	"endowment_nsp":        true,
+}
+
+type ProfitRequest struct {
+	EarnedRate      float64   `json:"earned_rate"`
+	DiscountRate    float64   `json:"discount_rate"`
+	Qxs             []float64 `json:"qxs"`
+	Age             int       `json:"age"`
+	Term            int       `json:"term"`
+	SumAssured      float64   `json:"sum_assured"`
+	Premium         float64   `json:"premium"`
+	Expenses        float64   `json:"expenses,omitempty"`
+	RenewalExpense  float64   `json:"renewal_expense,omitempty"`
+	CommissionRate  float64   `json:"commission_rate,omitempty"`
+	CommissionYears int       `json:"commission_years,omitempty"`
+	ReserveEnabled  bool      `json:"reserve_enabled,omitempty"`
+}
+
+type ProfitResponse struct {
+	ProfitSignature  []float64 `json:"profit_signature"`
+	CumulativeProfit []float64 `json:"cumulative_profit"`
+	ProfitVector     []float64 `json:"profit_vector"`
+	PVOfProfits      float64   `json:"pv_of_profits"`
+	PVOfPremiums     float64   `json:"pv_of_premiums"`
+	ProfitMargin     float64   `json:"profit_margin"`
+	IRR              float64   `json:"irr"`
+	PaybackYear      int       `json:"payback_year"`
+	ProcessingMs     int64     `json:"processing_ms"`
 }
 
 var validReserveMethods = map[string]bool{
@@ -326,6 +354,62 @@ func (s *Server) reserveHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ReserveResponse{
 		Reserve:      result,
 		ProcessingMs: time.Since(start).Milliseconds(),
+	})
+}
+
+func (s *Server) profitHandler(w http.ResponseWriter, r *http.Request) {
+	var req ProfitRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Qxs) == 0 {
+		http.Error(w, "qxs array is required", http.StatusBadRequest)
+		return
+	}
+	if req.Term <= 0 {
+		http.Error(w, "term must be positive", http.StatusBadRequest)
+		return
+	}
+	if req.Age < 0 {
+		http.Error(w, "age must be non-negative", http.StatusBadRequest)
+		return
+	}
+
+	start := time.Now()
+
+	mort := mortality.NewTable("inline", req.Qxs)
+	assumptions := profit.Assumptions{
+		Mortality:       mort,
+		EarnedRate:      req.EarnedRate,
+		DiscountRate:    req.DiscountRate,
+		Expenses:        req.Expenses,
+		RenewalExpense:  req.RenewalExpense,
+		CommissionRate:  req.CommissionRate,
+		CommissionYears: req.CommissionYears,
+		ReserveEnabled:  req.ReserveEnabled,
+	}
+	policy := profit.Policy{
+		Age:        req.Age,
+		Term:       req.Term,
+		SumAssured: req.SumAssured,
+		Premium:    req.Premium,
+	}
+
+	results := profit.Run(policy, assumptions)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ProfitResponse{
+		ProfitSignature:  results.ProfitSignature,
+		CumulativeProfit: results.CumulativeProfit,
+		ProfitVector:     results.ProfitVector,
+		PVOfProfits:      results.PVOfProfits,
+		PVOfPremiums:     results.PVOfPremiums,
+		ProfitMargin:     results.ProfitMargin,
+		IRR:              results.IRR,
+		PaybackYear:      results.PaybackYear,
+		ProcessingMs:     time.Since(start).Milliseconds(),
 	})
 }
 

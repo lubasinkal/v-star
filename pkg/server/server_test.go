@@ -649,6 +649,101 @@ func TestReserveHandler_EmptyQxs(t *testing.T) {
 	}
 }
 
+// --- /profit ----------------------------------------------------------------
+
+func TestProfitHandler_Basic(t *testing.T) {
+	qxs := make([]float64, 121)
+	for i := range qxs {
+		qxs[i] = 0.01
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"earned_rate":0.05,"discount_rate":0.08,"qxs":` + string(qxsJSON) + `,"age":30,"term":5,"sum_assured":100000,"premium":5000,"expenses":500,"renewal_expense":50}`
+	req := httptest.NewRequest("POST", "/profit", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).profitHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp ProfitResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.ProfitSignature) != 5 {
+		t.Errorf("len(ProfitSignature) = %d, want 5", len(resp.ProfitSignature))
+	}
+	if resp.PVOfProfits == 0 {
+		t.Error("PVOfProfits should be non-zero")
+	}
+	if resp.ProfitMargin == 0 {
+		t.Error("ProfitMargin should be non-zero")
+	}
+	if resp.PaybackYear == 0 {
+		t.Error("PaybackYear should be positive")
+	}
+}
+
+func TestProfitHandler_WithReserves(t *testing.T) {
+	qxs := make([]float64, 121)
+	for i := range qxs {
+		qxs[i] = 0.01
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"earned_rate":0.05,"discount_rate":0.08,"qxs":` + string(qxsJSON) + `,"age":30,"term":10,"sum_assured":100000,"premium":5000,"commission_rate":0.05,"commission_years":3,"reserve_enabled":true}`
+	req := httptest.NewRequest("POST", "/profit", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).profitHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp ProfitResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.ProfitSignature) != 10 {
+		t.Errorf("len(ProfitSignature) = %d, want 10", len(resp.ProfitSignature))
+	}
+}
+
+func TestProfitHandler_ValidationErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"empty qxs", `{"age":30,"term":5,"sum_assured":100000,"premium":5000,"qxs":[]}`},
+		{"zero term", `{"age":30,"term":0,"sum_assured":100000,"premium":5000,"qxs":[0.001]}`},
+		{"negative term", `{"age":30,"term":-1,"sum_assured":100000,"premium":5000,"qxs":[0.001]}`},
+		{"negative age", `{"age":-1,"term":5,"sum_assured":100000,"premium":5000,"qxs":[0.001]}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/profit", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			(&Server{}).profitHandler(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestProfitHandler_WrongMethod(t *testing.T) {
+	req := httptest.NewRequest("GET", "/profit", nil)
+	w := httptest.NewRecorder()
+	New(":0").routes().ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
+	}
+}
+
 // --- /health wrong method test ----------------------------------------------
 
 func TestHealthHandler_WrongMethod(t *testing.T) {

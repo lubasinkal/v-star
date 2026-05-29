@@ -25,6 +25,12 @@ func New(addr string) *Server {
 	return &Server{addr: addr}
 }
 
+// Handler returns the composed HTTP handler with all routes, middleware,
+// concurrency limiters, and caches configured.
+func (s *Server) Handler() http.Handler {
+	return s.routes()
+}
+
 // routes registers all handler patterns and returns the composed handler.
 func (s *Server) routes() http.Handler {
 	// Per-route concurrency limits, scaled to available CPU cores.
@@ -36,10 +42,12 @@ func (s *Server) routes() http.Handler {
 	simLim := middleware.NewConcurrencyLimiterV(cpu)
 	annLim := middleware.NewConcurrencyLimiterV(4 * cpu)
 	reserveLim := middleware.NewConcurrencyLimiterV(4 * cpu)
+	profitLim := middleware.NewConcurrencyLimiterV(4 * cpu)
 
 	// Result cache for idempotent pure-function endpoints.
 	annCache := middleware.NewCache(1000)
 	reserveCache := middleware.NewCache(1000)
+	profitCache := middleware.NewCache(1000)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.healthHandler)
@@ -47,6 +55,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /simulate", simLim.Wrap(http.HandlerFunc(s.simulateHandler)))
 	mux.Handle("POST /annuity", annCache.Wrap(annLim.Wrap(http.HandlerFunc(s.annuityHandler))))
 	mux.Handle("POST /reserve", reserveCache.Wrap(reserveLim.Wrap(http.HandlerFunc(s.reserveHandler))))
+	mux.Handle("POST /profit", profitCache.Wrap(profitLim.Wrap(http.HandlerFunc(s.profitHandler))))
 
 	return middleware.CreateStack(
 		middleware.Logging,
