@@ -431,22 +431,22 @@ func findIRR(profitSignature []float64, px []float64, guessRate float64) float64
 		}
 
 		// Shrink bracket. Track which endpoint STAYED (stagnated) to detect
-	// stagnation for the next iteration.
-	// When an endpoint stays unchanged for two consecutive steps,
-	// its function value is halved in the interpolation (Illinois modification).
-	if f*fLow > 0 {
-		// r replaces low — low moved, high stayed (stagnant)
-		low = r
-		fLow = f
-		lowStale = false
-		highStale = true
-	} else {
-		// r replaces high — high moved, low stayed (stagnant)
-		high = r
-		fHigh = f
-		highStale = false
-		lowStale = true
-	}
+		// stagnation for the next iteration.
+		// When an endpoint stays unchanged for two consecutive steps,
+		// its function value is halved in the interpolation (Illinois modification).
+		if f*fLow > 0 {
+			// r replaces low — low moved, high stayed (stagnant)
+			low = r
+			fLow = f
+			lowStale = false
+			highStale = true
+		} else {
+			// r replaces high — high moved, low stayed (stagnant)
+			high = r
+			fHigh = f
+			highStale = false
+			lowStale = true
+		}
 
 		if high-low < tol {
 			return (low + high) / 2
