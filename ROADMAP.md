@@ -1,15 +1,22 @@
 # Roadmap
 
-**Current**: v0.7.0 — Core Interfaces & Parallel Monte Carlo
-(Core interfaces stabilized, parallel MC path generation, version injection via ldflags, unified Record type)
+**Current**: v0.9.0 — Server API & Profit Endpoint
+(Exported `Server.Handler()` for embedding, `POST /profit` endpoint wrapping pkg/profit, response caching for idempotent endpoints, concurrency limiter per route)
 
-## v0.8.0 — CLI & API Polish (Early June 2026)
-- Reserve methods interface (gross/net premium, prospective, retrospective)
-- In-memory census source (CensusSource interface)
-- Profit testing / cashflow projection basics (pkg/profit)
-- Lock public API surface (no breaking changes after this)
-- Comprehensive error handling + validation
-- Deployment examples (Dockerfile for `serve`, Fly.io / Railway one-click)
+## v0.8.0 — CLI & API Polish (Released 2026-05-27)
+- ✅ Reserve methods interface (gross/net premium, prospective, retrospective)
+- ✅ In-memory census source (CensusSource interface)
+- ✅ Profit testing / cashflow projection basics (pkg/profit)
+- ✅ Lock public API surface (no breaking changes after this)
+- ⚠️  Comprehensive error handling + validation (partial)
+- ❌ Deployment examples (Dockerfile for `serve`, Fly.io / Railway one-click) — moved to v0.9.0
+
+## v0.9.0 — Server API & Profit Endpoint (2026-05-29)
+- `POST /profit` endpoint for profit testing / cashflow projection
+- Exported `Server.Handler()` for embedding and integration testing
+- Response caching on all idempotent endpoints (annuity, reserve, profit)
+- Per-route concurrency limiting with bounded wait queues
+- Deployment examples: Dockerfile for `serve`, Fly.io / Railway one-click config
 
 ## v1.0.0 — Stable Core (Mid-June 2026)
 The "show to employers / put on CV" version.
