@@ -315,10 +315,15 @@ func annuityDueTerm(age, term int, amount float64, disc *rates.RateConverter, mo
 }
 
 // findIRR finds the discount rate that makes NPV = 0 using binary search.
-// Searches in [0, 2] range. Returns -1 if not found.
+// Expands the search range dynamically if NPV is still positive at the
+// current upper bound. Returns the found rate, or maxRate if NPV remains
+// positive at the maximum searched rate, or -1 if not found.
 func findIRR(profitSignature []float64, px []float64, guessRate float64) float64 {
-	const maxIter = 100
-	const tol = 1e-6
+	const (
+		maxIter = 100
+		tol     = 1e-6
+		maxRate = 100.0 // 10000% ceiling
+	)
 
 	npv := func(rate float64) float64 {
 		pv := 0.0
@@ -333,22 +338,28 @@ func findIRR(profitSignature []float64, px []float64, guessRate float64) float64
 
 	// Check sign at rate = 0
 	f0 := npv(0)
-
 	if f0 <= 0 {
-		// Already not profitable at 0% discount
-		return 0
+		return 0 // Not profitable at 0%
 	}
 
-	// Binary search for root in [low, high]
+	// Dynamically expand upper bound until NPV turns negative
+	// or we hit the maximum rate ceiling.
 	low := 0.0
-	high := 2.0 // 200% max
-	fHigh := npv(high)
+	high := 1.0 // start at 100%
+	for npv(high) >= 0 && high < maxRate {
+		high *= 2
+	}
+	if high > maxRate {
+		high = maxRate
+	}
 
+	fHigh := npv(high)
 	if fHigh >= 0 {
-		// Still profitable at 200% — IRR is extremely high
+		// Still profitable at maxRate — IRR is beyond our ceiling
 		return high
 	}
 
+	// Binary search for root in [low, high]
 	for range maxIter {
 		mid := (low + high) / 2
 		fMid := npv(mid)
@@ -364,7 +375,7 @@ func findIRR(profitSignature []float64, px []float64, guessRate float64) float64
 		}
 
 		if high-low < tol {
-			return mid
+			return (low + high) / 2
 		}
 	}
 
@@ -375,7 +386,6 @@ func findIRR(profitSignature []float64, px []float64, guessRate float64) float64
 		if math.Abs(f) < tol {
 			return x
 		}
-		// Derivative approximation
 		h := 1e-6
 		fp := (npv(x+h) - f) / h
 		if math.Abs(fp) < 1e-12 {
@@ -384,9 +394,6 @@ func findIRR(profitSignature []float64, px []float64, guessRate float64) float64
 		x = x - f/fp
 		if x < 0 {
 			x = 0
-		}
-		if x > 2 {
-			x = 2
 		}
 	}
 
