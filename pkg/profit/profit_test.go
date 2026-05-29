@@ -415,6 +415,38 @@ func TestRun_ZeroSumAssured(t *testing.T) {
 
 // --- Benchmark ------------------------------------------------------------
 
+func BenchmarkFindIRR_Short(b *testing.B) {
+	sig := []float64{-100, 60, 60, 60, 60}
+	px := []float64{1, 1, 1, 1, 1}
+	for b.Loop() {
+		findIRR(sig, px, 0.10)
+	}
+}
+
+func BenchmarkFindIRR_Long(b *testing.B) {
+	sig := make([]float64, 40)
+	sig[0] = -1000
+	for i := 1; i < 40; i++ {
+		sig[i] = 50 + float64(i)*2
+	}
+	px := make([]float64, 40)
+	for i := range px {
+		px[i] = 0.98
+	}
+	for b.Loop() {
+		findIRR(sig, px, 0.10)
+	}
+}
+
+func BenchmarkFindIRR_NoConvergence(b *testing.B) {
+	// All positive — should return -1 immediately after sign check
+	sig := []float64{100, 200, 300}
+	px := []float64{1, 1, 1}
+	for b.Loop() {
+		findIRR(sig, px, 0.10)
+	}
+}
+
 func BenchmarkRun(b *testing.B) {
 	mort := uniformMortality(0.01, 120)
 	policy := Policy{
