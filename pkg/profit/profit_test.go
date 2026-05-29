@@ -323,12 +323,22 @@ func TestRun_IRR(t *testing.T) {
 }
 
 func TestFindIRR_NoProfit(t *testing.T) {
-	// All negative — IRR should return 0
+	// All negative — no sign change, no finite IRR
 	sig := []float64{-100, -100}
 	px := []float64{1.0, 1.0}
 	irr := findIRR(sig, px, 0.05)
-	if irr != 0 {
-		t.Errorf("IRR = %.4f, want 0", irr)
+	if irr != -1 {
+		t.Errorf("IRR = %.4f, want -1 (no sign change)", irr)
+	}
+}
+
+func TestFindIRR_AllPositive(t *testing.T) {
+	// All positive — no sign change, no finite IRR
+	sig := []float64{100, 100}
+	px := []float64{1.0, 1.0}
+	irr := findIRR(sig, px, 0.05)
+	if irr != -1 {
+		t.Errorf("IRR = %.4f, want -1 (no sign change)", irr)
 	}
 }
 

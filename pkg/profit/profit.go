@@ -314,92 +314,118 @@ func annuityDueTerm(age, term int, amount float64, disc *rates.RateConverter, mo
 	return pv
 }
 
-// findIRR finds the discount rate that makes NPV = 0 using binary search.
-// Expands the search range dynamically if NPV is still positive at the
-// current upper bound. Returns the found rate, or maxRate if NPV remains
-// positive at the maximum searched rate, or -1 if not found.
+// findIRR computes the internal rate of return using Newton-Raphson
+// with analytical derivative, guarded by bisection.
+//
+// The IRR is the discount rate r that makes the net present value of
+// the profit signature zero:
+//
+//	NPV(r) = Σ CF_t / (1+r)^(t+1) = 0
+//
+// Uses the analytical derivative (Newton's method):
+//
+//	NPV'(r) = -Σ CF_t * (t+1) / (1+r)^(t+2)
+//
+// Returns -1 when no finite IRR exists (all cash flows same sign,
+// or NPV does not cross zero).
 func findIRR(profitSignature []float64, px []float64, guessRate float64) float64 {
 	const (
 		maxIter = 100
-		tol     = 1e-6
-		maxRate = 100.0 // 10000% ceiling
+		tol     = 1e-10
+		maxRate = 1e6 // 100,000,000% — effectively infinite
 	)
 
-	npv := func(rate float64) float64 {
-		pv := 0.0
-		v := 1.0 / (1.0 + rate)
-		vPow := v
-		for t := range profitSignature {
-			pv += profitSignature[t] * vPow
+	// Find first sign change to determine if IRR is possible.
+	// If all cash flows have the same sign, no finite IRR exists.
+	hasPositive := false
+	hasNegative := false
+	for _, cf := range profitSignature {
+		if cf > 0 {
+			hasPositive = true
+		}
+		if cf < 0 {
+			hasNegative = true
+		}
+	}
+	if !hasPositive || !hasNegative {
+		return -1 // No sign change — no finite IRR
+	}
+
+	// Compute NPV and its analytical derivative at a given rate.
+	fn := func(rate float64) (f, fp float64) {
+		v := 1.0 / (1.0 + rate) // v = 1/(1+r)
+		vPow := v               // v^(t+1) for t=0
+		for t, cf := range profitSignature {
+			f += cf * vPow
+			fp -= cf * float64(t+1) * vPow / (1.0 + rate)
 			vPow *= v
 		}
-		return pv
+		return f, fp
 	}
 
-	// Check sign at rate = 0
-	f0 := npv(0)
-	if f0 <= 0 {
-		return 0 // Not profitable at 0%
-	}
-
-	// Dynamically expand upper bound until NPV turns negative
-	// or we hit the maximum rate ceiling.
+	// Find a bracket [low, high] where NPV changes sign.
+	// Start from the guess rate and expand outward exponentially.
 	low := 0.0
-	high := 1.0 // start at 100%
-	for npv(high) >= 0 && high < maxRate {
-		high *= 2
-	}
-	if high > maxRate {
-		high = maxRate
+	high := guessRate
+	if high <= 0 {
+		high = 0.05 // default 5%
 	}
 
-	fHigh := npv(high)
-	if fHigh >= 0 {
-		// Still profitable at maxRate — IRR is beyond our ceiling
-		return high
+	fLow, _ := fn(low)
+	fHigh, _ := fn(high)
+
+	// Guard: if our initial bracket straddles zero, we're done bracketing.
+	// Otherwise expand high until sign changes or we hit maxRate.
+	if fLow*fHigh > 0 {
+		// fLow and fHigh have the same sign — expand high.
+		// fLow > 0 by construction (hasPositive && hasNegative, and
+		// sum(CF_t) > 0 means NPV(0) > 0).
+		for math.Abs(fHigh) > tol && high < maxRate && fLow*fHigh > 0 {
+			high *= 2
+			fHigh, _ = fn(high)
+		}
+		if high >= maxRate || fLow*fHigh > 0 {
+			return -1 // Could not find bracket
+		}
 	}
 
-	// Binary search for root in [low, high]
+	// Newton-Raphson with bisection guarding.
+	// At each step, Newton proposes x_new. If it leaves the bracket
+	// or overshoots, we bisect instead.
+	x := (low + high) / 2
 	for range maxIter {
-		mid := (low + high) / 2
-		fMid := npv(mid)
-
-		if math.Abs(fMid) < tol {
-			return mid
+		f, fp := fn(x)
+		if math.Abs(f) < tol {
+			return x
+		}
+		if math.Abs(fp) < 1e-16 {
+			break // Derivative too small — can't Newton
 		}
 
-		if fMid > 0 {
-			low = mid
+		xNew := x - f/fp
+
+		// Guard: Newton step must stay inside bracket; if not, bisect.
+		if xNew <= low || xNew >= high {
+			xNew = (low + high) / 2
+		}
+
+		fNew, _ := fn(xNew)
+
+		// Update bracket: one side keeps the sign, one side has the root.
+		if fNew*fLow > 0 {
+			low = xNew
+			fLow = fNew
 		} else {
-			high = mid
+			high = xNew
+			fHigh = fNew
 		}
+
+		x = xNew
 
 		if high-low < tol {
 			return (low + high) / 2
 		}
 	}
 
-	// Fallback: use Newton-Raphson from guessRate
-	x := guessRate
-	for range maxIter {
-		f := npv(x)
-		if math.Abs(f) < tol {
-			return x
-		}
-		h := 1e-6
-		fp := (npv(x+h) - f) / h
-		if math.Abs(fp) < 1e-12 {
-			break
-		}
-		x = x - f/fp
-		if x < 0 {
-			x = 0
-		}
-	}
-
-	if npv(x) < tol {
-		return x
-	}
-
-	return -1 // not found
+	return -1 // Not converged
 }
