@@ -14,6 +14,9 @@ import (
 	"github.com/lubasinkal/v-star/pkg/server/middleware"
 )
 
+// DefaultCacheSize is the maximum number of entries in the per-endpoint caches.
+const DefaultCacheSize = 1000
+
 // Server holds the HTTP server configuration and routes.
 type Server struct {
 	addr   string
@@ -33,34 +36,27 @@ func (s *Server) Handler() http.Handler {
 
 // routes registers all handler patterns and returns the composed handler.
 func (s *Server) routes() http.Handler {
-	// Per-route concurrency limits, scaled to available CPU cores.
-	// Each limiter has a FIFO wait queue (2× max concurrent) so traffic
-	// bursts queue briefly instead of returning 503 immediately.
-	// Heavy CPU endpoints get 1×NumCPU, lighter I/O-bound get 4×NumCPU.
 	cpu := runtime.NumCPU()
-	valueLim := middleware.NewConcurrencyLimiterV(4 * cpu)
-	simLim := middleware.NewConcurrencyLimiterV(cpu)
-	annLim := middleware.NewConcurrencyLimiterV(4 * cpu)
-	reserveLim := middleware.NewConcurrencyLimiterV(4 * cpu)
-	profitLim := middleware.NewConcurrencyLimiterV(4 * cpu)
-
-	// Result cache for idempotent pure-function endpoints.
-	annCache := middleware.NewCache(1000)
-	reserveCache := middleware.NewCache(1000)
-	profitCache := middleware.NewCache(1000)
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.healthHandler)
-	mux.Handle("POST /value", valueLim.Wrap(http.HandlerFunc(s.pvHandler)))
-	mux.Handle("POST /simulate", simLim.Wrap(http.HandlerFunc(s.simulateHandler)))
-	mux.Handle("POST /annuity", annCache.Wrap(annLim.Wrap(http.HandlerFunc(s.annuityHandler))))
-	mux.Handle("POST /reserve", reserveCache.Wrap(reserveLim.Wrap(http.HandlerFunc(s.reserveHandler))))
-	mux.Handle("POST /profit", profitCache.Wrap(profitLim.Wrap(http.HandlerFunc(s.profitHandler))))
+	s.handle(mux, "POST /value", s.pvHandler, 4*cpu, false)
+	s.handle(mux, "POST /simulate", s.simulateHandler, cpu, false)
+	s.handle(mux, "POST /annuity", s.annuityHandler, 4*cpu, true)
+	s.handle(mux, "POST /reserve", s.reserveHandler, 4*cpu, true)
+	s.handle(mux, "POST /profit", s.profitHandler, 4*cpu, true)
+	return middleware.CreateStack(middleware.Logging, middleware.CORS)(mux)
+}
 
-	return middleware.CreateStack(
-		middleware.Logging,
-		middleware.CORS,
-	)(mux)
+// handle registers a route with a per-route concurrency limiter and optional cache.
+// The limiter has a 5-second wait timeout (queues brief bursts instead of 503).
+// Cache is applied outside the limiter so cache hits skip the slot wait.
+func (s *Server) handle(mux *http.ServeMux, pattern string, handler http.HandlerFunc, concurrency int, cached bool) {
+	h := http.Handler(handler)
+	h = middleware.NewConcurrencyLimiterV(concurrency).Wrap(h)
+	if cached {
+		h = middleware.NewCache(DefaultCacheSize).Wrap(h)
+	}
+	mux.Handle(pattern, h)
 }
 
 // Start registers routes and begins listening.
