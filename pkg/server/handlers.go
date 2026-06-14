@@ -109,18 +109,19 @@ var validComputations = map[string]bool{
 }
 
 type ProfitRequest struct {
-	EarnedRate      float64   `json:"earned_rate"`
-	DiscountRate    float64   `json:"discount_rate"`
-	Qxs             []float64 `json:"qxs"`
-	Age             int       `json:"age"`
-	Term            int       `json:"term"`
-	SumAssured      float64   `json:"sum_assured"`
-	Premium         float64   `json:"premium"`
-	Expenses        float64   `json:"expenses,omitempty"`
-	RenewalExpense  float64   `json:"renewal_expense,omitempty"`
-	CommissionRate  float64   `json:"commission_rate,omitempty"`
-	CommissionYears int       `json:"commission_years,omitempty"`
-	ReserveEnabled  bool      `json:"reserve_enabled,omitempty"`
+	EarnedRate       float64   `json:"earned_rate"`
+	DiscountRate     float64   `json:"discount_rate"`
+	Qxs              []float64 `json:"qxs"`
+	Age              int       `json:"age"`
+	Term             int       `json:"term"`
+	SumAssured       float64   `json:"sum_assured"`
+	Premium          float64   `json:"premium"`
+	Expenses         float64   `json:"expenses,omitempty"`
+	RenewalExpense   float64   `json:"renewal_expense,omitempty"`
+	CommissionRate   float64   `json:"commission_rate,omitempty"`
+	CommissionYears  int       `json:"commission_years,omitempty"`
+	ExpenseInflation float64   `json:"expense_inflation,omitempty"`
+	ReserveEnabled   bool      `json:"reserve_enabled,omitempty"`
 }
 
 type ProfitResponse struct {
@@ -417,14 +418,15 @@ func (s *Server) profitHandler(w http.ResponseWriter, r *http.Request) {
 
 	mort := mortality.NewTable("inline", req.Qxs)
 	assumptions := profit.Assumptions{
-		Mortality:       mort,
-		EarnedRate:      req.EarnedRate,
-		DiscountRate:    req.DiscountRate,
-		Expenses:        req.Expenses,
-		RenewalExpense:  req.RenewalExpense,
-		CommissionRate:  req.CommissionRate,
-		CommissionYears: req.CommissionYears,
-		ReserveEnabled:  req.ReserveEnabled,
+		Mortality:        mort,
+		EarnedRate:       req.EarnedRate,
+		DiscountRate:     req.DiscountRate,
+		Expenses:         req.Expenses,
+		RenewalExpense:   req.RenewalExpense,
+		CommissionRate:   req.CommissionRate,
+		CommissionYears:  req.CommissionYears,
+		ExpenseInflation: req.ExpenseInflation,
+		ReserveEnabled:   req.ReserveEnabled,
 	}
 	policy := profit.Policy{
 		Age:        req.Age,

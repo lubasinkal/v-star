@@ -62,6 +62,11 @@ type Assumptions struct {
 	// 0 means commission is paid every year the premium is received.
 	CommissionYears int
 
+	// ExpenseInflation is the annual inflation rate applied to renewal expenses.
+	// Renewal expenses grow each year: RenewalExpense * (1 + ExpenseInflation)^t.
+	// 0 means no inflation. Acquisition expense (Expenses) is not inflated.
+	ExpenseInflation float64
+
 	// ReserveEnabled determines whether reserves are projected.
 	// When true, the net premium reserve is calculated each year and
 	// the change in reserve is reflected in the profit signature.
@@ -166,8 +171,8 @@ func Run(policy Policy, assumptions Assumptions) Results {
 		}
 		commission := premiumIncome * commissionRate
 
-		// Acquisition expense (year 0 only) or renewal expense
-		yearExpense := assumptions.RenewalExpense
+		// Acquisition expense (year 0 only) or inflated renewal expense
+		yearExpense := assumptions.RenewalExpense * math.Pow(1+assumptions.ExpenseInflation, float64(t))
 		if t == 0 {
 			yearExpense += assumptions.Expenses // acquisition at issue
 		}

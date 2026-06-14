@@ -438,6 +438,64 @@ func BenchmarkFindIRR_Long(b *testing.B) {
 	}
 }
 
+// --- Expense Inflation --------------------------------------------------
+
+func TestExpenseInflation_ZeroInflation_NoChange(t *testing.T) {
+	// With 0% inflation, results should match no-inflation test
+	policy := Policy{
+		Age:        30,
+		Term:       5,
+		SumAssured: 0,
+		Premium:    1000,
+	}
+	assumptionsZero := Assumptions{
+		Mortality:        zeroMortality(120),
+		EarnedRate:       0,
+		DiscountRate:     0,
+		RenewalExpense:   100,
+		Expenses:         200,
+		ExpenseInflation: 0,
+	}
+	results := Run(policy, assumptionsZero)
+	// Year 0: (1000 - 200 - 100*1^0) = 700
+	// Year 1-4: (1000 - 100*1^t) = 900 each
+	want := []float64{700, 900, 900, 900, 900}
+	for i, v := range results.ProfitSignature {
+		if !floatEquals(v, want[i]) {
+			t.Errorf("ProfitSignature[%d] = %.4f, want %.4f", i, v, want[i])
+		}
+	}
+}
+
+func TestExpenseInflation_IncreasesExpenses(t *testing.T) {
+	// With 10% expense inflation and zero earned/discount rate
+	// profit = premium - inflated expense
+	policy := Policy{
+		Age:        30,
+		Term:       3,
+		SumAssured: 0,
+		Premium:    1000,
+	}
+	assumptions := Assumptions{
+		Mortality:        zeroMortality(120),
+		EarnedRate:       0,
+		DiscountRate:     0,
+		RenewalExpense:   100,
+		Expenses:         200,
+		ExpenseInflation: 0.10, // 10% annual inflation
+	}
+	results := Run(policy, assumptions)
+	// Year 0: 1000 - 200 - 100*1.10^0 = 700
+	// Year 1: 1000 - 100*1.10^1 = 890
+	// Year 2: 1000 - 100*1.10^2 = 879
+	want := []float64{700, 890, 879}
+	for i, v := range results.ProfitSignature {
+		if !floatEquals(v, want[i]) {
+			t.Errorf("ProfitSignature[%d] = %.4f, want %.4f", i, v, want[i])
+		}
+	}
+}
+
 func BenchmarkFindIRR_NoConvergence(b *testing.B) {
 	// All positive — should return -1 immediately after sign check
 	sig := []float64{100, 200, 300}
