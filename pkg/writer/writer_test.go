@@ -8,6 +8,90 @@ import (
 	"github.com/lubasinkal/v-star/pkg/risk"
 )
 
+func TestCSVWriter_WriteHeader_Idempotent(t *testing.T) {
+	var buf bytes.Buffer
+	cw := NewCSVWriter(&buf)
+
+	if err := cw.WriteHeader(); err != nil {
+		t.Fatalf("first WriteHeader: %v", err)
+	}
+	first := buf.String()
+
+	if err := cw.WriteHeader(); err != nil {
+		t.Fatalf("second WriteHeader: %v", err)
+	}
+	second := buf.String()
+
+	if first != second {
+		t.Error("WriteHeader should be idempotent, output changed")
+	}
+}
+
+func TestNewRecordWriter_CSV(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewRecordWriter(&buf, "csv")
+
+	if err := w.WriteRecord(Record{Age: 30, Sex: "M", PolicyType: "term", SumAssured: 100000, Term: 20, PresentValue: 37688.95}); err != nil {
+		t.Fatalf("WriteRecord: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "M,term,30,100000.00,20,37688.95") {
+		t.Errorf("expected record in output, got: %s", output)
+	}
+}
+
+func TestNewRecordWriter_JSON(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewRecordWriter(&buf, "json")
+
+	if err := w.WriteRecord(Record{Age: 30, Sex: "M", SumAssured: 100000, PresentValue: 37688.95}); err != nil {
+		t.Fatalf("WriteRecord: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.HasPrefix(output, "[") || !strings.HasSuffix(output, "]") {
+		t.Errorf("expected JSON array, got: %s", output)
+	}
+}
+
+func TestNewRecordWriter_Default(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewRecordWriter(&buf, "")
+
+	if err := w.WriteRecord(Record{Age: 30, SumAssured: 100000, PresentValue: 37688.95}); err != nil {
+		t.Fatalf("WriteRecord: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.HasPrefix(output, "[") {
+		t.Errorf("expected JSON output for default format, got: %s", output)
+	}
+}
+
+func TestStreamTextReport_DefaultTitle(t *testing.T) {
+	var buf bytes.Buffer
+	data := ReportData{InterestRate: 0.05, RecordCount: 10, TotalPresentValue: 100000}
+
+	if err := StreamTextReport(data, &buf); err != nil {
+		t.Fatalf("StreamTextReport: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Actuarial Valuation Report") {
+		t.Errorf("expected default title, got: %s", output)
+	}
+}
+
 func TestCSVRecord(t *testing.T) {
 	record := CSVRecord{
 		Sex:          "M",
