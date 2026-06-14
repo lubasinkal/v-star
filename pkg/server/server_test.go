@@ -1064,6 +1064,79 @@ func TestValuationHandler_Basic(t *testing.T) {
 	if resp.Records[0].Age != 30 {
 		t.Errorf("Records[0].Age = %d, want 30", resp.Records[0].Age)
 	}
+	if resp.Records[0].Method != "net_premium" {
+		t.Errorf("Records[0].Method = %q, want %q", resp.Records[0].Method, "net_premium")
+	}
+}
+
+func TestValuationHandler_ReserveMethods(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+
+	tests := []struct {
+		name    string
+		method  string
+		extra   string
+		wantErr bool
+	}{
+		{"net_premium default", "", "", false},
+		{"net_premium explicit", "net_premium", "", false},
+		{"gross_premium", "gross_premium", `,"premium":5000,"expenses":500`, false},
+		{"prospective", "prospective", `,"premium":5000`, false},
+		{"retrospective", "retrospective", `,"premium":5000`, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			methodJSON := ""
+			if tt.method != "" {
+				methodJSON = `,"method":"` + tt.method + `"`
+			}
+			body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"records":[{"age":30,"sex":"M","policy_type":"term","sum_assured":100000,"term":10` + methodJSON + tt.extra + `}]}`
+
+			req := httptest.NewRequest("POST", "/valuation", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			(&Server{}).valuationHandler(w, req)
+
+			if tt.wantErr {
+				if w.Code == http.StatusOK {
+					t.Errorf("expected error, got OK: %s", w.Body.String())
+				}
+				return
+			}
+
+			if w.Code != http.StatusOK {
+				t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+				return
+			}
+
+			var resp ValuationResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			if resp.RecordCount != 1 {
+				t.Errorf("RecordCount = %d, want 1", resp.RecordCount)
+			}
+			if resp.Records[0].PresentValue <= 0 {
+				t.Errorf("PresentValue = %v, want > 0", resp.Records[0].PresentValue)
+			}
+		})
+	}
 }
 
 func TestValuationHandler_NoQxs(t *testing.T) {

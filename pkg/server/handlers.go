@@ -141,6 +141,9 @@ type ValuationRecord struct {
 	PolicyType string  `json:"policy_type"`
 	SumAssured float64 `json:"sum_assured"`
 	Term       int     `json:"term"`
+	Premium    float64 `json:"premium,omitempty"`
+	Expenses   float64 `json:"expenses,omitempty"`
+	Method     string  `json:"method,omitempty"` // reserve method: net_premium (default), gross_premium, prospective, retrospective
 }
 
 type ValuationRequest struct {
@@ -157,6 +160,7 @@ type ValuationResult struct {
 	Term         int     `json:"term"`
 	PresentValue float64 `json:"present_value"`
 	Reserve      float64 `json:"reserve"`
+	Method       string  `json:"method"`
 }
 
 type ValuationResponse struct {
@@ -475,14 +479,30 @@ func (s *Server) valuationHandler(w http.ResponseWriter, r *http.Request) {
 	for _, rec := range req.Records {
 		pv := discount.PresentValue(rec.SumAssured, rec.Term)
 		res := 0.0
-		if mort != nil && rec.Term > 0 {
+		method := rec.Method
+		if method == "" {
+			method = "net_premium"
+		}
+
+		if mort != nil && rec.Term > 0 && validReserveMethods[method] {
 			policy := reserves.PolicySpec{
 				Age:        rec.Age,
 				Term:       rec.Term,
 				SumAssured: rec.SumAssured,
+				Premium:    rec.Premium,
 			}
-			res = reserves.NetPremiumReserve(policy, discount, mort)
+			switch method {
+			case "net_premium":
+				res = reserves.NetPremiumReserve(policy, discount, mort)
+			case "gross_premium":
+				res = reserves.GrossPremiumReserve(policy, rec.Expenses, discount, mort)
+			case "prospective":
+				res = reserves.ProspectiveReserve(policy, discount, mort)
+			case "retrospective":
+				res = reserves.RetrospectiveReserve(policy, discount, mort)
+			}
 		}
+
 		totalPV += pv
 		totalReserve += res
 		results = append(results, ValuationResult{
@@ -493,6 +513,7 @@ func (s *Server) valuationHandler(w http.ResponseWriter, r *http.Request) {
 			Term:         rec.Term,
 			PresentValue: pv,
 			Reserve:      res,
+			Method:       method,
 		})
 	}
 
