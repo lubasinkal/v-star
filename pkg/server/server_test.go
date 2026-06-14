@@ -1012,6 +1012,121 @@ func TestNewConcurrencyLimiterV(t *testing.T) {
 	}
 }
 
+// --- /valuation ------------------------------------------------------------
+
+func TestValuationHandler_Basic(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"records":[
+		{"age":30,"sex":"M","policy_type":"term","sum_assured":100000,"term":20},
+		{"age":45,"sex":"F","policy_type":"whole","sum_assured":200000,"term":15}
+	]}`
+
+	req := httptest.NewRequest("POST", "/valuation", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).valuationHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp ValuationResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.RecordCount != 2 {
+		t.Errorf("RecordCount = %d, want 2", resp.RecordCount)
+	}
+	if len(resp.Records) != 2 {
+		t.Errorf("len(Records) = %d, want 2", len(resp.Records))
+	}
+	if resp.TotalPV <= 0 {
+		t.Errorf("TotalPV = %v, want > 0", resp.TotalPV)
+	}
+	if resp.Records[0].PresentValue <= 0 {
+		t.Errorf("Records[0].PresentValue = %v, want > 0", resp.Records[0].PresentValue)
+	}
+	if resp.Records[0].Age != 30 {
+		t.Errorf("Records[0].Age = %d, want 30", resp.Records[0].Age)
+	}
+}
+
+func TestValuationHandler_NoQxs(t *testing.T) {
+	// Without qxs, reserves are 0 but PV is still computed
+	body := `{"interest_rate":0.05,"records":[{"age":30,"sum_assured":100000,"term":20}]}`
+	req := httptest.NewRequest("POST", "/valuation", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).valuationHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp ValuationResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.RecordCount != 1 {
+		t.Errorf("RecordCount = %d, want 1", resp.RecordCount)
+	}
+	if resp.TotalPV <= 0 {
+		t.Errorf("TotalPV = %v, want > 0", resp.TotalPV)
+	}
+	if resp.TotalReserve != 0 {
+		t.Errorf("TotalReserve = %v, want 0 (no qxs)", resp.TotalReserve)
+	}
+}
+
+func TestValuationHandler_ValidationErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"zero interest", `{"interest_rate":0,"records":[{"age":30,"sum_assured":100000,"term":20}]}`},
+		{"negative interest", `{"interest_rate":-0.05,"records":[{"age":30,"sum_assured":100000,"term":20}]}`},
+		{"empty records", `{"interest_rate":0.05,"records":[]}`},
+		{"missing records", `{"interest_rate":0.05}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/valuation", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			(&Server{}).valuationHandler(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestValuationHandler_WrongMethod(t *testing.T) {
+	req := httptest.NewRequest("GET", "/valuation", nil)
+	w := httptest.NewRecorder()
+	New(":0").routes().ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
+	}
+}
+
 func BenchmarkServerNew(b *testing.B) {
 	for b.Loop() {
 		_ = New(":8080")

@@ -135,6 +135,38 @@ type ProfitResponse struct {
 	ProcessingMs     int64     `json:"processing_ms"`
 }
 
+type ValuationRecord struct {
+	Age        int     `json:"age"`
+	Sex        string  `json:"sex"`
+	PolicyType string  `json:"policy_type"`
+	SumAssured float64 `json:"sum_assured"`
+	Term       int     `json:"term"`
+}
+
+type ValuationRequest struct {
+	InterestRate float64           `json:"interest_rate"`
+	Qxs          []float64         `json:"qxs"`
+	Records      []ValuationRecord `json:"records"`
+}
+
+type ValuationResult struct {
+	Age          int     `json:"age"`
+	Sex          string  `json:"sex"`
+	PolicyType   string  `json:"policy_type"`
+	SumAssured   float64 `json:"sum_assured"`
+	Term         int     `json:"term"`
+	PresentValue float64 `json:"present_value"`
+	Reserve      float64 `json:"reserve"`
+}
+
+type ValuationResponse struct {
+	Records      []ValuationResult `json:"records"`
+	TotalPV      float64           `json:"total_pv"`
+	TotalReserve float64           `json:"total_reserve"`
+	RecordCount  int               `json:"record_count"`
+	ProcessingMs int64             `json:"processing_ms"`
+}
+
 var validReserveMethods = map[string]bool{
 	"net_premium":   true,
 	"gross_premium": true,
@@ -410,6 +442,67 @@ func (s *Server) profitHandler(w http.ResponseWriter, r *http.Request) {
 		IRR:              results.IRR,
 		PaybackYear:      results.PaybackYear,
 		ProcessingMs:     time.Since(start).Milliseconds(),
+	})
+}
+
+func (s *Server) valuationHandler(w http.ResponseWriter, r *http.Request) {
+	var req ValuationRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.InterestRate <= 0 {
+		http.Error(w, "interest_rate must be positive", http.StatusBadRequest)
+		return
+	}
+	if len(req.Records) == 0 {
+		http.Error(w, "records array is required", http.StatusBadRequest)
+		return
+	}
+
+	start := time.Now()
+	discount := rates.NewRateConverter(req.InterestRate)
+	var mort mortality.MortalityTable
+	if len(req.Qxs) > 0 {
+		mort = mortality.NewTable("inline", req.Qxs)
+	}
+
+	results := make([]ValuationResult, 0, len(req.Records))
+	totalPV := 0.0
+	totalReserve := 0.0
+
+	for _, rec := range req.Records {
+		pv := discount.PresentValue(rec.SumAssured, rec.Term)
+		res := 0.0
+		if mort != nil && rec.Term > 0 {
+			policy := reserves.PolicySpec{
+				Age:        rec.Age,
+				Term:       rec.Term,
+				SumAssured: rec.SumAssured,
+			}
+			res = reserves.NetPremiumReserve(policy, discount, mort)
+		}
+		totalPV += pv
+		totalReserve += res
+		results = append(results, ValuationResult{
+			Age:          rec.Age,
+			Sex:          rec.Sex,
+			PolicyType:   rec.PolicyType,
+			SumAssured:   rec.SumAssured,
+			Term:         rec.Term,
+			PresentValue: pv,
+			Reserve:      res,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ValuationResponse{
+		Records:      results,
+		TotalPV:      totalPV,
+		TotalReserve: totalReserve,
+		RecordCount:  len(results),
+		ProcessingMs: time.Since(start).Milliseconds(),
 	})
 }
 

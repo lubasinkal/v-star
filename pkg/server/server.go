@@ -44,6 +44,7 @@ func (s *Server) routes() http.Handler {
 	s.handle(mux, "POST /annuity", s.annuityHandler, 4*cpu, true)
 	s.handle(mux, "POST /reserve", s.reserveHandler, 4*cpu, true)
 	s.handle(mux, "POST /profit", s.profitHandler, 4*cpu, true)
+	s.handle(mux, "POST /valuation", s.valuationHandler, 4*cpu, true)
 	return middleware.CreateStack(middleware.Logging, middleware.CORS)(mux)
 }
 
