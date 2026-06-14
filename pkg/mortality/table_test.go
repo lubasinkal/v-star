@@ -149,6 +149,11 @@ func TestTableName(t *testing.T) {
 	if table.Name() != "CD2021" {
 		t.Errorf("Name() = %v, want CD2021", table.Name())
 	}
+
+	var nilTable *Table
+	if got := nilTable.Name(); got != "" {
+		t.Errorf("nil Name() = %q, want empty", got)
+	}
 }
 
 func TestTableEx(t *testing.T) {
@@ -189,6 +194,20 @@ func TestExtractName(t *testing.T) {
 	}
 }
 
+func TestTableMaxAge_Nil(t *testing.T) {
+	var nilTable *Table
+	if got := nilTable.MaxAge(); got != -1 {
+		t.Errorf("nil MaxAge() = %v, want -1", got)
+	}
+}
+
+func TestTableQx_Nil(t *testing.T) {
+	var nilTable *Table
+	if got := nilTable.Qx(0); got != 0 {
+		t.Errorf("nil Qx() = %v, want 0", got)
+	}
+}
+
 func TestLoadCSV(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test.csv")
@@ -211,6 +230,29 @@ func TestLoadCSV(t *testing.T) {
 	}
 	if table.Qx(0) != 0.001 {
 		t.Errorf("Qx(0) = %v, want 0.001", table.Qx(0))
+	}
+}
+
+func TestLoadCSV_WithPx(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "px_table.csv")
+	content := "age,px\n0,1.0\n1,0.999\n2,0.997\n"
+
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	table, err := LoadCSV(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadCSV: %v", err)
+	}
+
+	if table.MaxAge() != 2 {
+		t.Errorf("MaxAge() = %v, want 2", table.MaxAge())
+	}
+	// px=1.0 at age 0 → qx should be near 0
+	if table.Qx(0) > 0.01 {
+		t.Errorf("Qx(0) = %v, want near 0", table.Qx(0))
 	}
 }
 
