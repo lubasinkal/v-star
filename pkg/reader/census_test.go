@@ -235,6 +235,232 @@ func TestStreamCensusFromReader_Empty(t *testing.T) {
 	}
 }
 
+func TestStreamCensus_EmptyDataAfterHeader(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "empty_data.csv")
+	if err := os.WriteFile(tmpFile, []byte("age,sex,policy_type,sum_assured,term\n"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	var count int
+	err := StreamCensus(tmpFile, CSVOptions{Header: true}, func(r CensusRecord) {
+		count++
+	})
+	if err != nil {
+		t.Fatalf("StreamCensus: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("got %d records, want 0", count)
+	}
+}
+
+func TestStreamCensusFromReader_NoHeaderEmpty(t *testing.T) {
+	var count int
+	err := StreamCensusFromReader(strings.NewReader(""), CSVOptions{}, func(r CensusRecord) {
+		count++
+	})
+	if err != nil {
+		t.Fatalf("StreamCensusFromReader: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("got %d records, want 0", count)
+	}
+}
+
+func TestStreamCensusFromReader_WithParseError(t *testing.T) {
+	data := "age,sex,policy_type,sum_assured,term\n30,M,term,100000,20\nbad\n31,F,whole,200000,25\n"
+	var errCount int
+	var count int
+	err := StreamCensusFromReader(strings.NewReader(data), CSVOptions{Header: true, OnParseError: func(_ int, _ error) {
+		errCount++
+	}}, func(r CensusRecord) {
+		count++
+	})
+	if err != nil {
+		t.Fatalf("StreamCensusFromReader: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("got %d records, want 2", count)
+	}
+	if errCount != 1 {
+		t.Errorf("got %d errors, want 1", errCount)
+	}
+}
+
+func TestMmapFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "mmap.csv")
+	content := []byte("age,sex\n30,M\n31,F\n")
+	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	f, err := os.Open(tmpFile)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer f.Close()
+
+	mapped, err := mmapFile(f)
+	if err != nil {
+		t.Fatalf("mmapFile: %v", err)
+	}
+	defer munmap(mapped)
+
+	if len(mapped) != len(content) {
+		t.Errorf("mmap len = %d, want %d", len(mapped), len(content))
+	}
+	if string(mapped) != string(content) {
+		t.Errorf("mmap content = %q, want %q", string(mapped), string(content))
+	}
+}
+
+func TestMmapEmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "empty.csv")
+	if err := os.WriteFile(tmpFile, []byte{}, 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	f, err := os.Open(tmpFile)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer f.Close()
+
+	mapped, err := mmapFile(f)
+	if err != nil {
+		t.Fatalf("mmapFile: %v", err)
+	}
+	defer munmap(mapped)
+
+	if mapped != nil {
+		t.Errorf("expected nil for empty file, got %v", mapped)
+	}
+}
+
+func TestParseMappedCensus(t *testing.T) {
+	// Build a synthetic CSV buffer with header + data rows
+	header := []byte("age,sex,policy_type,sum_assured,term\n")
+	var data []byte
+	for i := range 1000 {
+		row := []byte("30,M,term,100000,20\n")
+		data = append(data, row...)
+		_ = i
+	}
+	mapped := append(header, data...)
+
+	var count int
+	var seen []CensusRecord
+	err := parseMappedCensus(mapped, int64(len(header)), int64(len(data)), 4, ',', 0, nil, func(r CensusRecord) {
+		count++
+		seen = append(seen, r)
+	})
+	if err != nil {
+		t.Fatalf("parseMappedCensus: %v", err)
+	}
+	if count != 1000 {
+		t.Errorf("got %d records, want 1000", count)
+	}
+	if seen[0].Age != 30 || seen[0].Sex != "M" || seen[0].PolicyType != "term" || seen[0].SumAssured != 100000 || seen[0].Term != 20 {
+		t.Errorf("first record: %+v", seen[0])
+	}
+}
+
+func TestParseMappedCensus_WithLimit(t *testing.T) {
+	header := []byte("age,sex,policy_type,sum_assured,term\n")
+	var data []byte
+	for i := range 100 {
+		data = append(data, []byte("30,M,term,100000,20\n")...)
+		_ = i
+	}
+	mapped := append(header, data...)
+
+	var count int
+	err := parseMappedCensus(mapped, int64(len(header)), int64(len(data)), 2, ',', 10, nil, func(r CensusRecord) {
+		count++
+	})
+	if err != nil {
+		t.Fatalf("parseMappedCensus: %v", err)
+	}
+	if count != 10 {
+		t.Errorf("got %d records, want 10", count)
+	}
+}
+
+func TestParseMappedCensus_WithParseError(t *testing.T) {
+	header := []byte("age,sex,policy_type,sum_assured,term\n")
+	// Include one bad row
+	data := []byte("30,M,term,100000,20\nbadrow\n31,F,whole,200000,25\n")
+	mapped := append(header, data...)
+
+	var count int
+	var errCount int
+	err := parseMappedCensus(mapped, int64(len(header)), int64(len(data)), 1, ',', 0, func(_ int, _ error) {
+		errCount++
+	}, func(r CensusRecord) {
+		count++
+	})
+	if err != nil {
+		t.Fatalf("parseMappedCensus: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("got %d records, want 2", count)
+	}
+	if errCount != 1 {
+		t.Errorf("got %d parse errors, want 1", errCount)
+	}
+}
+
+func TestParseMappedCensus_EmptyData(t *testing.T) {
+	header := []byte("age,sex,policy_type,sum_assured,term\n")
+	mapped := append(header, []byte{}...)
+
+	var count int
+	err := parseMappedCensus(mapped, int64(len(header)), 0, 2, ',', 0, nil, func(r CensusRecord) {
+		count++
+	})
+	if err != nil {
+		t.Fatalf("parseMappedCensus: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("got %d records, want 0", count)
+	}
+}
+
+func TestStreamCensus_LargeFile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping large file test in short mode")
+	}
+
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "large.csv")
+
+	// Build a CSV >10MB to trigger memory-mapped path
+	var buf strings.Builder
+	buf.WriteString("age,sex,policy_type,sum_assured,term\n")
+	row := "30,M,term,100000,20\n"
+	// ~11MB: 200000 rows * ~55 bytes = 11MB
+	for i := range 200000 {
+		buf.WriteString(row)
+		_ = i
+	}
+	if err := os.WriteFile(tmpFile, []byte(buf.String()), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	var count int
+	err := StreamCensus(tmpFile, CSVOptions{Header: true, Delimiter: ','}, func(r CensusRecord) {
+		count++
+	})
+	if err != nil {
+		t.Fatalf("StreamCensus: %v", err)
+	}
+	if count != 200000 {
+		t.Errorf("got %d records, want 200000", count)
+	}
+}
+
 func TestBuildColumnMap(t *testing.T) {
 	m := buildColumnMap([]string{"Age", "Sex", "Policy Type", "SumAssured", "Term"})
 	if m["age"] != 0 {

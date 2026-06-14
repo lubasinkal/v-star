@@ -1,6 +1,9 @@
 package reader
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -169,6 +172,30 @@ func TestFileCensusSource_Stream(t *testing.T) {
 	}
 	if len(ages) != 2 || ages[0] != 30 || ages[1] != 25 {
 		t.Errorf("ages = %v, want [30 25]", ages)
+	}
+}
+
+func TestFileCensusSource_Stream_WithError(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "source.csv")
+	content := "age,sex,policy_type,sum_assured,term\n30,M,term,100000,20\n31,F,whole,200000,25\n32,M,endowment,150000,15\n"
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	s := NewFileCensusSource(tmpFile, CSVOptions{Header: true})
+
+	targetErr := errors.New("stop")
+	count, err := s.Stream(func(r CensusRecord) error {
+		if r.Age == 31 {
+			return targetErr
+		}
+		return nil
+	})
+	if err != targetErr {
+		t.Errorf("got error %v, want %v", err, targetErr)
+	}
+	if count != 1 {
+		t.Errorf("got count %d, want 1", count)
 	}
 }
 

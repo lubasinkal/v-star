@@ -106,6 +106,38 @@ func TestStreamCSVRawFields(t *testing.T) {
 	}
 }
 
+func TestGetHeaders_EmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "empty.csv")
+	if err := os.WriteFile(tmpFile, []byte{}, 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	headers, err := GetHeaders(tmpFile, ',')
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if headers != nil {
+		t.Errorf("expected nil headers for empty file, got %v", headers)
+	}
+}
+
+func TestGetHeaders_DefaultDelimiter(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.csv")
+	if err := os.WriteFile(tmpFile, []byte("a,b\n1,2\n"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	headers, err := GetHeaders(tmpFile, 0)
+	if err != nil {
+		t.Fatalf("GetHeaders: %v", err)
+	}
+	if len(headers) != 2 {
+		t.Errorf("got %d headers, want 2", len(headers))
+	}
+}
+
 func TestGetHeaders(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test.csv")
