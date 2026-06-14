@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/lubasinkal/v-star/pkg/server/middleware"
 )
 
 func TestHealthHandler(t *testing.T) {
@@ -134,6 +136,67 @@ func TestSimulateHandler_GBM(t *testing.T) {
 	}
 	if len(resp.Paths) != 100 {
 		t.Errorf("len(paths) = %d, want 100", len(resp.Paths))
+	}
+}
+
+func TestSimulateHandler_VasicekParallel(t *testing.T) {
+	body := `{"model":"vasicek","initial_rate":0.05,"volatility":0.02,"long_term_mean":0.05,"mean_reversion":0.3,"num_paths":50,"steps":10,"include_paths":true,"num_workers":2}`
+	req := httptest.NewRequest("POST", "/simulate", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).simulateHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp SimulateResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Paths) != 50 {
+		t.Errorf("len(paths) = %d, want 50", len(resp.Paths))
+	}
+}
+
+func TestSimulateHandler_GBMWithSeed(t *testing.T) {
+	body := `{"model":"gbm","initial_rate":0.05,"drift":0.02,"volatility":0.15,"num_paths":100,"steps":10,"seed":42}`
+	req := httptest.NewRequest("POST", "/simulate", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).simulateHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp SimulateResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Mean == 0 {
+		t.Error("Mean should be non-zero")
+	}
+}
+
+func TestSimulateHandler_Vasicek_LargePaths(t *testing.T) {
+	// num_paths > 1000 triggers parallel path with workers <= 0 (auto-detect)
+	body := `{"model":"vasicek","initial_rate":0.05,"volatility":0.02,"long_term_mean":0.05,"mean_reversion":0.3,"num_paths":1001,"steps":5,"include_paths":false}`
+	req := httptest.NewRequest("POST", "/simulate", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).simulateHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp SimulateResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Mean == 0 {
+		t.Error("Mean should be non-zero")
 	}
 }
 
@@ -403,6 +466,114 @@ func TestAnnuityHandler_EndowmentNSP(t *testing.T) {
 	}
 	qxsJSON, _ := json.Marshal(qxs)
 	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"term":10,"amount":100000,"computation":"endowment_nsp"}`
+	req := httptest.NewRequest("POST", "/annuity", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).annuityHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp AnnuityResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PresentValue == 0 {
+		t.Error("PresentValue should be non-zero")
+	}
+}
+
+func TestAnnuityHandler_DeferredWholeLife(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"amount":1000,"computation":"deferred_whole_life","deferment":5}`
+	req := httptest.NewRequest("POST", "/annuity", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).annuityHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp AnnuityResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PresentValue == 0 {
+		t.Error("PresentValue should be non-zero")
+	}
+}
+
+func TestAnnuityHandler_DeferredTerm(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"term":10,"amount":1000,"computation":"deferred_term","deferment":5}`
+	req := httptest.NewRequest("POST", "/annuity", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	(&Server{}).annuityHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp AnnuityResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PresentValue == 0 {
+		t.Error("PresentValue should be non-zero")
+	}
+}
+
+func TestAnnuityHandler_WholeLifeNSP(t *testing.T) {
+	qxs := make([]float64, 111)
+	for i := 0; i <= 110; i++ {
+		switch {
+		case i < 30:
+			qxs[i] = 0.001
+		case i < 50:
+			qxs[i] = 0.003
+		case i < 70:
+			qxs[i] = 0.010
+		case i < 90:
+			qxs[i] = 0.050
+		default:
+			qxs[i] = 0.200
+		}
+	}
+	qxsJSON, _ := json.Marshal(qxs)
+	body := `{"interest_rate":0.05,"qxs":` + string(qxsJSON) + `,"age":30,"amount":100000,"computation":"whole_life_nsp"}`
 	req := httptest.NewRequest("POST", "/annuity", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -762,6 +933,82 @@ func TestServerNew(t *testing.T) {
 	s := New(":8080")
 	if s == nil {
 		t.Error("New returned nil")
+	}
+}
+
+func TestHandler(t *testing.T) {
+	s := New(":0")
+	h := s.Handler()
+	if h == nil {
+		t.Fatal("Handler() returned nil")
+	}
+
+	// Verify the handler responds to health
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/health")
+	if err != nil {
+		t.Fatalf("health request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("health status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestRoutes_FullStack(t *testing.T) {
+	// Tests the full handler stack through routes(), which applies
+	// middleware (concurrency limiter + cache) to each endpoint.
+	s := New(":0")
+	h := s.routes()
+
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/health")
+	if err != nil {
+		t.Fatalf("health request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("health status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	// Test a cached endpoint through the full stack
+	body := `{"interest_rate":0.05,"records":[{"sum_assured":100000,"term":20}]}`
+	resp, err = http.Post(srv.URL+"/value", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("value request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("value status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestNewConcurrencyLimiterV(t *testing.T) {
+	limiter := middleware.NewConcurrencyLimiterV(2)
+	if limiter == nil {
+		t.Fatal("NewConcurrencyLimiterV returned nil")
+	}
+
+	// Wrap a handler and verify it responds
+	var called bool
+	h := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if !called {
+		t.Error("wrapped handler was not called")
+	}
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 }
 

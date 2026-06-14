@@ -77,6 +77,30 @@ func TestLogging(t *testing.T) {
 	}
 }
 
+func TestNewConcurrencyLimiterV(t *testing.T) {
+	limiter := NewConcurrencyLimiterV(2)
+	if limiter == nil {
+		t.Fatal("NewConcurrencyLimiterV returned nil")
+	}
+
+	var called bool
+	h := limiter.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusTeapot)
+	}))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if !called {
+		t.Error("handler was not called")
+	}
+	if w.Code != http.StatusTeapot {
+		t.Errorf("status = %d, want 418", w.Code)
+	}
+}
+
 func TestConcurrencyLimiter_PassesThrough(t *testing.T) {
 	limiter := NewConcurrencyLimiter(1, time.Second)
 	called := false
